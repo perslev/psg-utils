@@ -20,7 +20,7 @@ setup(
     long_description_content_type='text/markdown',
     author='Mathias Perslev',
     author_email='map@di.ku.dk',
-    url='https://github.com/perslev/U-Sleep-API-Python-Bindings',
+    url='https://github.com/perslev/sleep-utils',
     packages=find_packages(),
     package_dir={'sleeputils':
                  'sleeputils'},
