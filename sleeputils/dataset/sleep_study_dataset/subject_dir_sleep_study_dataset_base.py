@@ -1,10 +1,12 @@
+import logging
 import os
 import numpy as np
-
-from utime.dataset.sleep_study_dataset.abc_sleep_study_dataset \
+from sleeputils.errors import CouldNotLoadError
+from sleeputils.dataset.utils import find_subject_folders
+from sleeputils.dataset.sleep_study_dataset.abc_sleep_study_dataset \
     import AbstractBaseSleepStudyDataset
-from utime.errors import CouldNotLoadError
-from utime.dataset.utils import find_subject_folders
+
+logger = logging.getLogger(__name__)
 
 
 class SubjectDirSleepStudyDatasetBase(AbstractBaseSleepStudyDataset):
@@ -21,7 +23,6 @@ class SubjectDirSleepStudyDatasetBase(AbstractBaseSleepStudyDataset):
                  period_length_sec=None,
                  annotation_dict=None,
                  identifier=None,
-                 logger=None,
                  no_log=False):
         """
         Initialize a SleepStudyDataset from a directory storing one or more
@@ -47,7 +48,6 @@ class SubjectDirSleepStudyDatasetBase(AbstractBaseSleepStudyDataset):
                                               storred in the hyp files to
                                               label integer values.
             identifier:              (string) Dataset ID/name
-            logger:                  (Logger) A Logger object
             no_log:                  (bool)   Do not log dataset details on init
         """
         if not no_labels and bool(psg_regex) != bool(hyp_regex):
@@ -58,7 +58,6 @@ class SubjectDirSleepStudyDatasetBase(AbstractBaseSleepStudyDataset):
         super(SubjectDirSleepStudyDatasetBase, self).__init__(
             period_length_sec=period_length_sec,
             identifier=identifier or os.path.split(self.data_dir)[-1],
-            logger=logger,
             no_log=True
         )
         # Get list of subject folders in the data_dir according to folder_regex
@@ -77,8 +76,7 @@ class SubjectDirSleepStudyDatasetBase(AbstractBaseSleepStudyDataset):
                 no_hypnogram=no_labels,
                 period_length_sec=self.period_length_sec,
                 annotation_dict=annotation_dict,
-                load=False,
-                logger=self.logger
+                load=False
             )
             pairs.append(ss)
         self.add_pairs(pairs)

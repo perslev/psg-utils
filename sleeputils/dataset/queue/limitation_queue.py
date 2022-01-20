@@ -1,8 +1,11 @@
+import logging
 import numpy as np
-from utime.dataset.queue.base_queue import BaseQueue
-from utime.dataset.queue.study_loader import StudyLoader
+from sleeputils.dataset.queue.base_queue import BaseQueue
+from sleeputils.dataset.queue.study_loader import StudyLoader
 from queue import Queue, Empty
 from contextlib import contextmanager
+
+logger = logging.getLogger(__name__)
 
 
 class LimitationQueue(BaseQueue):
@@ -22,7 +25,6 @@ class LimitationQueue(BaseQueue):
                  await_preload=True,
                  study_loader=None,
                  n_load_jobs=7,
-                 logger=None,
                  **kwargs):
         """
         Initialize a LoadQueue object from a of SleepStudyDataset object
@@ -40,11 +42,9 @@ class LimitationQueue(BaseQueue):
             preload_now:   TODO
             study_loader:  TODO
             n_load_jobs:   TODO
-            logger:        TODO
         """
         super(LimitationQueue, self).__init__(
-            dataset=dataset,
-            logger=logger
+            dataset=dataset
         )
         self.max_loaded = min(max_loaded or len(dataset), len(dataset))
         self.num_access_before_reload = num_access_before_reload
@@ -87,7 +87,7 @@ class LimitationQueue(BaseQueue):
 
         """
         # Set the number of loaded objects to 'max_loaded_per_dataset'
-        self.logger("Preloading {} SleepStudy objects from "
+        logger.info("Preloading {} SleepStudy objects from "
                     "{}".format(self.max_loaded, self.dataset.identifier))
         if self.dataset.n_loaded != 0 or self.loaded_queue.qsize() != 0:
             raise RuntimeError("Dataset {} seems to have already been "
@@ -98,9 +98,9 @@ class LimitationQueue(BaseQueue):
                                "".format(self.dataset.identifier))
         self._add_studies_to_load_queue(num=self.max_loaded)
         if await_preload:
-            self.logger("... awaiting preload")
+            logger.info("... awaiting preload")
             self.study_loader.join()
-            self.logger("Preload complete.")
+            logger.info("Preload complete.")
 
     def load_queue_too_full(self, max_fraction=0.33):
         return self.study_loader.qsize() > \
@@ -109,14 +109,14 @@ class LimitationQueue(BaseQueue):
     def _warn_access_limit(self, min_fraction=0.10):
         qsize = self.loaded_queue.qsize()
         if qsize == 0:
-            self.logger.warn("Study ID queue for dataset {} seems to"
-                             " block. This might indicate a data loading "
-                             "bottleneck.".format(self.dataset.identifier))
+            logger.warning("Study ID queue for dataset {} seems to"
+                           " block. This might indicate a data loading "
+                           "bottleneck.".format(self.dataset.identifier))
         elif qsize <= self.max_loaded*min_fraction:
-            self.logger.warn("Dataset {}: Loaded queue getting too empty "
-                             "(qsize={}, maxsize={})"
-                             .format(self.dataset.identifier, qsize,
-                                     self.max_loaded))
+            logger.warning("Dataset {}: Loaded queue getting too empty "
+                           "(qsize={}, maxsize={})".format(self.dataset.identifier,
+                                                           qsize,
+                                                           self.max_loaded))
 
     @contextmanager
     def get_study_by_id(self, study_id):
@@ -187,7 +187,7 @@ class LimitationQueue(BaseQueue):
         self.loaded_queue.put((sleep_study, offset))
 
     def _load_error_callback(self, sleep_study, *args, **kwargs):
-        self.logger.warn("Load error on study {}".format(sleep_study))
+        logger.warning("Load error on study {}".format(sleep_study))
         self._add_studies_to_load_queue(num=1)
 
     def _release_study(self, sleep_study, n_accesses):

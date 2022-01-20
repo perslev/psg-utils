@@ -1,11 +1,13 @@
+import logging
 from utime.errors import CouldNotLoadError
-from mpunet.logging.default_logger import ScreenLogger
 from threading import Lock, Thread
-from queue import Queue, Empty
+from queue import Queue
 from time import sleep
 
+logger = logging.getLogger(__name__)
 
-def _load_func(load_queue, results_queue, load_errors_queue, lock, logger):
+
+def _load_func(load_queue, results_queue, load_errors_queue, lock):
     """
 
     Args:
@@ -21,8 +23,8 @@ def _load_func(load_queue, results_queue, load_errors_queue, lock, logger):
             results_queue.put((to_load, dataset_id))
         except CouldNotLoadError as e:
             with lock:
-                logger.warn("[ERROR in StudyLoader] "
-                            "Could not load study '{}'".format(to_load))
+                logger.warning("[ERROR in StudyLoader] "
+                               "Could not load study '{}' (error: {})".format(to_load, e))
             load_errors_queue.put((to_load, dataset_id))
         finally:
             load_queue.task_done()
@@ -52,8 +54,7 @@ class StudyLoader:
     """
     def __init__(self,
                  n_threads=5,
-                 max_queue_size=50,
-                 logger=None):
+                 max_queue_size=50):
         """
         Initialize a StudyLoader object from a list of SleepStudyDataset objects
 
@@ -61,7 +62,6 @@ class StudyLoader:
             TODO
         """
         # Setup load thread pool
-        self.logger = logger or ScreenLogger()
         self._load_queue = Queue(maxsize=max_queue_size)
         self._output_queue = Queue(maxsize=max_queue_size)
         self._load_errors_queue = Queue(maxsize=3)  # We probably want to raise
@@ -69,8 +69,7 @@ class StudyLoader:
                                                     # gets to more than ~3!
         self.thread_lock = Lock()
 
-        args = (self._load_queue, self._output_queue, self._load_errors_queue,
-                self.thread_lock, self.logger)
+        args = (self._load_queue, self._output_queue, self._load_errors_queue, self.thread_lock)
         self.pool = []
         for _ in range(n_threads):
             p = Thread(target=_load_func, args=args, daemon=True)
@@ -102,15 +101,15 @@ class StudyLoader:
 
     def join(self):
         """ Join on all queues """
-        self.logger("Awaiting preload from {} (train) datasets".format(
+        logger.info("Awaiting preload from {} (train) datasets".format(
             len(self._registered_datasets)
         ))
         self._load_queue.join()
-        self.logger("Load queue joined...")
+        logger.info("Load queue joined...")
         self._output_queue.join()
-        self.logger("Output queue joined...")
+        logger.info("Output queue joined...")
         self._load_errors_queue.join()
-        self.logger("Errors queue joined...")
+        logger.info("Errors queue joined...")
 
     def add_study_to_load_queue(self, study, dataset_id):
         if dataset_id not in self._registered_datasets:
@@ -119,11 +118,11 @@ class StudyLoader:
                                " items from that dataset to the loading "
                                "queue".format(dataset_id))
         if self.qsize() == self.maxsize:
-            self.logger.warn("Loading queue seems about to block! "
-                             "(max_size={}, current={}). "
-                             "Sleeping until loading queue is empty "
-                             "again.".format(self.maxsize,
-                                             self.qsize()))
+            logger.warning("Loading queue seems about to block! "
+                           "(max_size={}, current={}). "
+                           "Sleeping until loading queue is empty "
+                           "again.".format(self.maxsize,
+                                           self.qsize()))
             while self.qsize() > 1:
                 sleep(1)
         self._load_queue.put((study, dataset_id))

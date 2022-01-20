@@ -2,15 +2,18 @@
 Implements the SleepStudy class which represents a sleep study (PSG)
 """
 
+import logging
 import numpy as np
-from utime import errors
-from utime.io.high_level_file_loaders import load_psg, load_hypnogram
-from utime.preprocessing import (apply_scaling, strip_funcs, apply_strip_func,
-                                 assert_scaler, set_psg_sample_rate,
-                                 quality_control_funcs, assert_equal_length,
-                                 apply_quality_control_func)
-from utime.hypnogram.utils import create_class_int_to_period_idx_dict
-from utime.dataset.sleep_study.subject_dir_sleep_study_base import SubjectDirSleepStudyBase
+from sleeputils import errors
+from sleeputils.io.high_level_file_loaders import load_psg, load_hypnogram
+from sleeputils.preprocessing import (apply_scaling, strip_funcs, apply_strip_func,
+                                      assert_scaler, set_psg_sample_rate,
+                                      quality_control_funcs, assert_equal_length,
+                                      apply_quality_control_func)
+from sleeputils.hypnogram.utils import create_class_int_to_period_idx_dict
+from sleeputils.dataset.sleep_study.subject_dir_sleep_study_base import SubjectDirSleepStudyBase
+
+logger = logging.getLogger(__name__)
 
 
 def assert_header_fields(header):
@@ -37,8 +40,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
                  period_length_sec=None,
                  no_hypnogram=None,
                  annotation_dict=None,
-                 load=False,
-                 logger=None):
+                 load=False):
         """
         Initialize a SleepStudy object from PSG/HYP data
 
@@ -69,7 +71,6 @@ class SleepStudy(SubjectDirSleepStudyBase):
             annotation_dict   (dict)   A dictionary mapping from labels in the
                                        hyp_file_path file to integers
             load              (bool)   Load the PSG object at init time.
-            logger            (Logger) A Logger object
         """
         super(SleepStudy, self).__init__(
             subject_dir=subject_dir,
@@ -78,8 +79,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
             header_regex=header_regex,
             period_length_sec=period_length_sec,
             no_hypnogram=no_hypnogram,
-            annotation_dict=annotation_dict,
-            logger=logger
+            annotation_dict=annotation_dict
         )
         # Hidden attributes controlled in property functions to limit setting
         # of these values to the load() function

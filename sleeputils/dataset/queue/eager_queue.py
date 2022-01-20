@@ -1,5 +1,8 @@
-from utime.dataset.queue.base_queue import BaseQueue
+import logging
+from sleeputils.queue.base_queue import BaseQueue
 from contextlib import contextmanager
+
+logger = logging.getLogger(__name__)
 
 
 class EagerQueue(BaseQueue):
@@ -10,16 +13,14 @@ class EagerQueue(BaseQueue):
     behaves similar to the training queue object, but where all data is loaded
     up-front.
     """
-    def __init__(self, dataset, logger=None, **kwargs):
+    def __init__(self, dataset, **kwargs):
         """
         TODO
         Args:
             dataset:
-            logger:
         """
         super(EagerQueue, self).__init__(
-            dataset=dataset,
-            logger=logger
+            dataset=dataset
         )
         self.dataset.load()
 

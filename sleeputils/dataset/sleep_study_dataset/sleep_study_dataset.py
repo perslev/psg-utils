@@ -1,6 +1,9 @@
-from utime.dataset import SleepStudy
-from utime.dataset.sleep_study_dataset.subject_dir_sleep_study_dataset_base\
+import logging
+from sleeputils.dataset import SleepStudy
+from sleeputils.dataset.sleep_study_dataset.subject_dir_sleep_study_dataset_base \
     import SubjectDirSleepStudyDatasetBase
+
+logger = logging.getLogger(__name__)
 
 
 class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
@@ -16,7 +19,6 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
                  period_length_sec=None,
                  annotation_dict=None,
                  identifier=None,
-                 logger=None,
                  no_log=False):
         """
         Initialize a SleepStudyDataset from a directory storing one or more
@@ -40,7 +42,6 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
                                               storred in the hyp files to
                                               label integer values.
             identifier:              (string) Dataset ID/name
-            logger:                  (Logger) A Logger object
             no_log:                  (bool)   Do not log dataset details on init
         """
         super(SleepStudyDataset, self).__init__(
@@ -53,7 +54,6 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
             period_length_sec=period_length_sec,
             annotation_dict=annotation_dict,
             identifier=identifier,
-            logger=logger,
             no_log=no_log
         )
 

@@ -1,7 +1,9 @@
+import logging
 import numpy as np
 from abc import ABC, abstractmethod
 from utime import Defaults
-from mpunet.logging import ScreenLogger
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractBaseSleepStudyDataset(ABC):
@@ -12,7 +14,6 @@ class AbstractBaseSleepStudyDataset(ABC):
                  identifier,
                  pairs=None,
                  period_length_sec=None,
-                 logger=None,
                  no_log=False):
         """
         Initialize a SleepStudyDataset from a directory storing one or more
@@ -24,17 +25,14 @@ class AbstractBaseSleepStudyDataset(ABC):
             period_length_sec:       (int)    Ground truth segmentation
                                               period length in seconds.
             identifier:              (string) Dataset ID/name
-            logger:                  (Logger) A Logger object
             no_log:                  (bool)   Do not log dataset details on init
         """
-        self.logger = logger or ScreenLogger()
         self._identifier = identifier
         self._id_to_study = None
         self._study_identifiers = None
         self._pairs = pairs or []
         self._misc = {}  # May store arbitrary properties for this dataset
-        self.period_length_sec = (period_length_sec or
-                                  Defaults.get_default_period_length(self.logger))
+        self.period_length_sec = period_length_sec or Defaults.get_default_period_length()
 
         # Get list of subject folders in the data_dir according to folder_regex
         if len(np.unique([p.identifier for p in self.pairs])) != len(self.pairs):
@@ -58,7 +56,7 @@ class AbstractBaseSleepStudyDataset(ABC):
         id_msg = "[Dataset: {}]".format(self.identifier)
         if message is None:
             message = str(self)
-        self.logger("{} {}".format(id_msg, message))
+        logger.info("{} {}".format(id_msg, message))
 
     @property
     def identifier(self):

@@ -1,8 +1,10 @@
+import logging
 import numpy as np
-from mpunet.logging import ScreenLogger
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from utime import Defaults
+from sleeputils import Defaults
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractBaseSleepStudy(ABC):
@@ -12,8 +14,7 @@ class AbstractBaseSleepStudy(ABC):
     def __init__(self,
                  annotation_dict,
                  period_length_sec,
-                 no_hypnogram,
-                 logger=None):
+                 no_hypnogram):
         """
         TODO
 
@@ -21,13 +22,10 @@ class AbstractBaseSleepStudy(ABC):
             annotation_dict:
             period_length_sec:
             no_hypnogram:
-            logger:
         """
-        self.logger = logger or ScreenLogger()
         self.annotation_dict = annotation_dict
         self.no_hypnogram = no_hypnogram
-        self.period_length_sec = period_length_sec or \
-            Defaults.get_default_period_length(self.logger)
+        self.period_length_sec = period_length_sec or Defaults.get_default_period_length()
 
         # Hidden attributes controlled in property functions to limit setting
         # of these values to the load() function

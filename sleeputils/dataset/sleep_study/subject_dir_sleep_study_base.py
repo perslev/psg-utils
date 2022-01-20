@@ -2,11 +2,14 @@
 Implements the SleepStudyBase class which represents a sleep study (PSG)
 """
 
+import logging
 import os
 import numpy as np
-from utime import Defaults
-from utime.dataset.utils import find_psg_and_hyp
-from utime.dataset.sleep_study.abc_sleep_study import AbstractBaseSleepStudy
+from sleeputils import Defaults
+from sleeputils.dataset.utils import find_psg_and_hyp
+from sleeputils.dataset.sleep_study.abc_sleep_study import AbstractBaseSleepStudy
+
+logger = logging.getLogger(__name__)
 
 
 class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
@@ -17,8 +20,7 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
                  header_regex=None,
                  period_length_sec=None,
                  no_hypnogram=None,
-                 annotation_dict=None,
-                 logger=None):
+                 annotation_dict=None):
         """
         Initialize a SubjectDirSleepStudyBase object from PSG/HYP data
 
@@ -48,13 +50,11 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
             no_hypnogram      (bool)   Initialize without ground truth data.
             annotation_dict   (dict)   A dictionary mapping from labels in the
                                        hyp_file_path file to integers
-            logger            (Logger) A Logger object
         """
         super(SubjectDirSleepStudyBase, self).__init__(
             annotation_dict=annotation_dict,
             period_length_sec=period_length_sec,
-            no_hypnogram=no_hypnogram,
-            logger=logger
+            no_hypnogram=no_hypnogram
         )
         self.subject_dir = os.path.abspath(subject_dir)
         try:

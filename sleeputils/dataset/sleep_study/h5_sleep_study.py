@@ -2,19 +2,25 @@
 Implements the SleepStudy class which represents a sleep study (PSG)
 """
 
+import logging
 import numpy as np
-from utime import errors, Defaults
-from utime.dataset.sleep_study.abc_sleep_study import AbstractBaseSleepStudy
-from utime.io.channels import ChannelMontageTuple
-from utime.io.high_level_file_loaders import get_org_include_exclude_channel_montages
+from sleeputils import errors, Defaults
+from sleeputils.dataset.sleep_study.abc_sleep_study import AbstractBaseSleepStudy
+from sleeputils.io.channels import ChannelMontageTuple
+from sleeputils.io.high_level_file_loaders import get_org_include_exclude_channel_montages
+
+logger = logging.getLogger(__name__)
 
 
 class H5SleepStudy(AbstractBaseSleepStudy):
     """
     Represents a PSG sleep study and (optionally) a manually scored hypnogram
     """
-    def __init__(self, h5_study_object, annotation_dict=None,
-                 period_length_sec=None, no_hypnogram=False, logger=None):
+    def __init__(self,
+                 h5_study_object,
+                 annotation_dict=None,
+                 period_length_sec=None,
+                 no_hypnogram=False):
         """
         TODO
         """
@@ -22,8 +28,7 @@ class H5SleepStudy(AbstractBaseSleepStudy):
         super(H5SleepStudy, self).__init__(
             annotation_dict=annotation_dict,
             period_length_sec=period_length_sec,
-            no_hypnogram=no_hypnogram,
-            logger=logger
+            no_hypnogram=no_hypnogram
         )
         if self.annotation_dict:
             self.annotation_dict = np.vectorize(annotation_dict.get)

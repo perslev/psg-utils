@@ -1,5 +1,8 @@
-from utime.dataset.queue.base_queue import BaseQueue
+import logging
+from sleeputils.dataset.queue.base_queue import BaseQueue
 from contextlib import contextmanager
+
+logger = logging.getLogger(__name__)
 
 
 class LazyQueue(BaseQueue):
@@ -10,7 +13,7 @@ class LazyQueue(BaseQueue):
     similar to the training queue object, but without consuming memory before
     needing to do validation.
     """
-    def __init__(self, dataset, logger=None, **kwargs):
+    def __init__(self, dataset, **kwargs):
         """
         TODO
         Args:
@@ -18,8 +21,7 @@ class LazyQueue(BaseQueue):
             logger:
         """
         super(LazyQueue, self).__init__(
-            dataset=dataset,
-            logger=logger
+            dataset=dataset
         )
 
     @contextmanager

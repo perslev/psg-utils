@@ -1,10 +1,12 @@
-import h5py
-import atexit
+import logging
 import os
 import re
-from utime.dataset.sleep_study_dataset.abc_sleep_study_dataset import AbstractBaseSleepStudyDataset
-from utime.dataset.sleep_study import H5SleepStudy
-from mpunet.logging.default_logger import ScreenLogger
+import h5py
+import atexit
+from sleeputils.dataset.sleep_study_dataset.abc_sleep_study_dataset import AbstractBaseSleepStudyDataset
+from sleeputils.dataset.sleep_study import H5SleepStudy
+
+logger = logging.getLogger(__name__)
 
 
 class H5Dataset(AbstractBaseSleepStudyDataset):
@@ -13,13 +15,11 @@ class H5Dataset(AbstractBaseSleepStudyDataset):
                  identifier=None,
                  annotation_dict=None,
                  period_length_sec=None,
-                 no_log=False,
-                 logger=None):
+                 no_log=False):
         self.h5_dataset_obj = h5_dataset_obj
         super(H5Dataset, self).__init__(
             identifier=identifier or self.h5_dataset_obj.name.lstrip("/"),
             period_length_sec=period_length_sec,
-            logger=logger,
             no_log=True
         )
         pairs = []
@@ -28,8 +28,7 @@ class H5Dataset(AbstractBaseSleepStudyDataset):
                 pair = H5SleepStudy(
                     self.h5_dataset_obj[pair_id],
                     annotation_dict=annotation_dict,
-                    period_length_sec=self.period_length_sec,
-                    logger=logger
+                    period_length_sec=self.period_length_sec
                 )
             except KeyError:
                 continue  # missing data, TODO, temp
@@ -76,24 +75,14 @@ class SingleH5Dataset:
     """
     def __init__(self,
                  h5_path,
-                 identifier=None,
-                 logger=None):
+                 identifier=None):
         """
         Initialize a dataset from a single HDF5 file storing all (preprocessed)
         data. Usually used in conjungtion with the output of 'ut preprocess'.
 
         Args:
             TODO
-            period_length_sec:       (int)    Ground truth segmentation
-                                              period length in seconds.
-            annotation_dict:         (dict)   Dictionary mapping labels as
-                                              storred in the hyp files to
-                                              label integer values.
-            identifier:              (string) Dataset ID/name
-            logger:                  (Logger) A Logger object
-            no_log:                  (bool)   Do not log dataset details on init
         """
-        self.logger = logger or ScreenLogger()
         self.h5_path = os.path.abspath(h5_path)
         self.identifier = identifier or \
                           os.path.splitext(os.path.split(h5_path)[-1])[0]
@@ -104,7 +93,7 @@ class SingleH5Dataset:
         # Open HDF5 archive, register close func on exit
         self.h5_object = h5py.File(self.h5_path, "r")
         atexit.register(lambda: self.h5_object.close())
-        self.logger(self)
+        logger.info(str(self))
 
     def __str__(self):
         return "SingleH5Dataset(identifier={}, path={})".format(
@@ -134,7 +123,6 @@ class SingleH5Dataset:
                     identifier=dataset_h5.name.lstrip("/"),
                     annotation_dict=annotation_dict,
                     period_length_sec=period_length_sec,
-                    no_log=no_log,
-                    logger=self.logger
+                    no_log=no_log
                 ))
         return datasets

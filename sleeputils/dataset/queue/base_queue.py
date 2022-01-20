@@ -1,6 +1,7 @@
+import logging
 import numpy as np
-from mpunet.logging.default_logger import ScreenLogger
-from concurrent.futures import ThreadPoolExecutor
+
+logger = logging.getLogger(__name__)
 
 
 class BaseQueue:
@@ -9,15 +10,13 @@ class BaseQueue:
     used across all queue objects
     The BaseQueue should normally not be initialized directly.
     """
-    def __init__(self, dataset, logger=None):
+    def __init__(self, dataset):
         """
         TODO
         Args:
             datasets:
-            logger:
         """
         self.dataset = dataset
-        self.logger = logger or ScreenLogger()
 
     def get_pairs(self):
         return self.dataset.pairs
