@@ -14,7 +14,7 @@ _CHECKSUM_FILE = "{}/dcsm_checksums.txt".format(_FILE_PATH)
 
 def dcsm_paths_func(file_name, server_url, out_dataset_folder):
     """
-    See utime/preprocessing/dataset_preparation/utils.py [download_dataset]
+    See sleeputils/downloads/utils.py [download_dataset]
     A callable of signature func(file_name, server_url, out_dataset_folder) which returns:
     1) download_url (path to fetch file from on remote system)
     2) out_file_path (path to store file on local system)

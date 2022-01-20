@@ -11,20 +11,6 @@ from contextlib import contextmanager
 logger = logging.getLogger(__name__)
 
 
-def to_ids(start, durs, stage, out):
-    """
-    Save init/start, durs, stage lists to .ids format
-
-    :param start: list, list of start/onset/inits in seconds
-    :param durs: list, list of durations in seconds
-    :param stage: list, list of stages (typically string or ints)
-    :param out: str, path to output path, usually with suffix '.ids'
-    """
-    with open(out, "w") as out_f:
-        for i, d, s in zip(start, durs, stage):
-            out_f.write("{},{},{}\n".format(int(i), int(d), s))
-
-
 def exactly_one_specified(*inputs):
     """
     Returns True if exactly one of *inputs is None

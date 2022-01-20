@@ -48,8 +48,8 @@ def preprocess_phys_hypnograms(dataset_folder_path):
     """
     import numpy as np
     from wfdb.io import rdann
+    from sleeputils.io.file_writers import to_ids
     from sleeputils.io.high_level_file_loaders import load_psg
-    from sleeputils.utils import to_ids
     from sleeputils.hypnogram import SparseHypnogram
     from sleeputils import Defaults
 
