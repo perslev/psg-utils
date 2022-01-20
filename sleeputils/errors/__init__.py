@@ -1,6 +1,5 @@
 """
-Small collection of custom objects.
-Sometimes used for their custom names only.
+A collection of custom error objects.
 """
 
 
