@@ -1,5 +1,8 @@
+import logging
 import os
-from utime.preprocessing.dataset_preparation.utils import download_dataset
+from sleeputils.downloads.utils import download_dataset
+
+logger = logging.getLogger(__name__)
 
 # Get path to current module file
 _FILE_PATH = os.path.split(__file__)[0]

@@ -1,5 +1,8 @@
+import logging
 import os
-from utime.preprocessing.dataset_preparation.utils import download_dataset
+from sleeputils.downloads.utils import download_dataset
+
+logger = logging.getLogger(__name__)
 
 # Get path to current module file
 _FILE_PATH = os.path.split(__file__)[0]
@@ -15,7 +18,7 @@ _CHECKSUM_FILE_ST = "{}/sedf_st_checksums.txt".format(_FILE_PATH)
 
 def sedf_paths_func(file_name, server_url, out_dataset_folder):
     """
-    See utime/preprocessing/dataset_preparation/utils.py [download_dataset]
+    See sleeputils/download/utils.py [download_dataset]
     A callable of signature func(file_name, server_url, out_dataset_folder) which returns:
     1) download_url (path to fetch file from on remote system)
     2) out_file_path (path to store file on local system)

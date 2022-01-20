@@ -1,7 +1,10 @@
+import logging
 import os
 import hashlib
 import requests
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def get_checksums_and_file_names(path):
@@ -40,10 +43,10 @@ def download_and_validate(download_url, sha256, out_path):
     """
     if os.path.exists(out_path):
         if validate_sha256(out_path, sha256):
-            print("... skipping (already downloaded with valid sha256)")
+            logger.info("... skipping (already downloaded with valid sha256)")
             return
         else:
-            print("... File exists, but invalid SHA256, re-downloading")
+            logger.info("... File exists, but invalid SHA256, re-downloading")
 
     response = requests.get(download_url, allow_redirects=True)
     if response.ok:
@@ -88,7 +91,7 @@ def download_dataset(out_dataset_folder, server_url, checksums_path, paths_func,
     checksums, file_names = get_checksums_and_file_names(checksums_path)
     zipped = get_n_first(file_names, checksums, N_first)
     for i, (file_name, sha256) in enumerate(zipped):
-        print(f"Downloading {file_name} ({i + 1}/{len(zipped)})")
+        logger.info(f"Downloading {file_name} ({i + 1}/{len(zipped)})")
         download_url, out_file_path = paths_func(file_name, server_url, out_dataset_folder)
         out_file_path = Path(out_file_path)
         out_file_path.parent.mkdir(parents=True, exist_ok=True)

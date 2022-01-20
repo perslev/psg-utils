@@ -1,6 +1,9 @@
+import logging
 import os
 from glob import glob
-from utime.preprocessing.dataset_preparation.utils import download_dataset
+from sleeputils.downloads.utils import download_dataset
+
+logger = logging.getLogger(__name__)
 
 # Get path to current module file
 _FILE_PATH = os.path.split(__file__)[0]
@@ -12,7 +15,7 @@ _CHECKSUM_FILE = "{}/phys_checksums.txt".format(_FILE_PATH)
 
 def phys_paths_func(file_name, server_url, out_dataset_folder):
     """
-    See utime/preprocessing/dataset_preparation/utils.py [download_dataset]
+    See sleeputils/downloads/utils.py [download_dataset]
     A callable of signature func(file_name, server_url, out_dataset_folder) which returns:
     1) download_url (path to fetch file from on remote system)
     2) out_file_path (path to store file on local system)
@@ -45,10 +48,10 @@ def preprocess_phys_hypnograms(dataset_folder_path):
     """
     import numpy as np
     from wfdb.io import rdann
-    from utime.io.high_level_file_loaders import load_psg
-    from utime.bin.extract_hypno import to_ids
-    from utime.hypnogram import SparseHypnogram
-    from utime import Defaults
+    from sleeputils.io.high_level_file_loaders import load_psg
+    from sleeputils.utils import to_ids
+    from sleeputils.hypnogram import SparseHypnogram
+    from sleeputils import Defaults
 
     # Get list of subject folders
     subject_folders = glob(os.path.join(dataset_folder_path, "tr*"))

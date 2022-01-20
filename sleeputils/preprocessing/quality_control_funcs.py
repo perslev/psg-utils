@@ -6,9 +6,11 @@ The period_length_sec argument should also be accepted, but functions could
 ignore this and do quality control checks that exceed the original epoch
 boundaries.
 """
-
+import logging
 import numpy as np
-from utime.errors import NotLoadedError
+from sleeputils.errors import NotLoadedError
+
+logger = logging.getLogger(__name__)
 
 
 def zero_out_noisy_epochs(psg, sample_rate, period_length_sec,
@@ -124,9 +126,9 @@ def apply_quality_control_func(sleep_study, sample_rate, warn=True):
                   **kwargs)
     for i, chan_inds in enumerate(inds):
         if warn and len(chan_inds) != 0:
-            sleep_study.logger.warn("Quality control for sample '{}' affected "
-                                    "{}/{} epochs in channel {}"
-                                    "".format(sleep_study.identifier or "<identifier not passed>",
-                                              len(chan_inds),
-                                              sleep_study.n_periods, i))
+            logger.warning("Quality control for sample '{}' affected "
+                           "{}/{} epochs in channel {}".format(sleep_study.identifier or "<identifier not passed>",
+                                                               len(chan_inds),
+                                                               sleep_study.n_periods,
+                                                               i))
     return psg

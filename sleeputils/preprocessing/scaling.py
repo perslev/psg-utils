@@ -4,9 +4,11 @@ Functions for channel-wise scaling of PSG data
 Implements the MultiChannelScaler, which fits and applies scalers from the
 sklearn.preprocessing module individually to channels of a PSG ndarray
 """
-
+import logging
 import sklearn.preprocessing as preprocessing
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def assert_scaler(scaler):

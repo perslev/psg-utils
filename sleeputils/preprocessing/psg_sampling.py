@@ -1,6 +1,9 @@
 """
 Set of functions for down- and re-sampling of PSG signals
 """
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def fourier_resample(psg, new_sample_rate, old_sample_rate):

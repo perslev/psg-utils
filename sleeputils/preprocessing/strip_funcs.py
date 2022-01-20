@@ -10,12 +10,13 @@ two extending longer in time at the end of the study. The data that extends
 beyond the other file will normally be discarded (see strip functions below)
 """
 
+import logging
 import numpy as np
-from utime import Defaults
-from utime.hypnogram import SparseHypnogram
-from utime.errors import NotLoadedError, StripError
+from sleeputils import Defaults
+from sleeputils.hypnogram import SparseHypnogram
+from sleeputils.errors import NotLoadedError, StripError
 
-
+logger = logging.getLogger(__name__)
 _STRIP_ERR = StripError("Unexpected difference between PSG and HYP lengths.")
 
 
