@@ -6,7 +6,7 @@ import logging
 import numpy as np
 from sleeputils import errors, Defaults
 from sleeputils.dataset.sleep_study.abc_sleep_study import AbstractBaseSleepStudy
-from sleeputils.io.channels import ChannelMontageTuple
+from sleeputils.io.channels import ChannelMontageTuple, RandomChannelSelector
 from sleeputils.io.high_level_file_loaders import get_org_include_exclude_channel_montages
 
 logger = logging.getLogger(__name__)
@@ -359,7 +359,6 @@ class H5SleepStudy(AbstractBaseSleepStudy):
         Returns:
 
         """
-        from utime.io.channels import RandomChannelSelector
         if channel_selector is not None and not \
                 isinstance(channel_selector, RandomChannelSelector):
             raise TypeError("Expected 'channel_selector' argument to be of "

@@ -5,6 +5,7 @@ Implements the SleepStudy class which represents a sleep study (PSG)
 import logging
 import numpy as np
 from sleeputils import errors
+from sleeputils.io.channels import RandomChannelSelector
 from sleeputils.io.high_level_file_loaders import load_psg, load_hypnogram
 from sleeputils.preprocessing import (apply_scaling, strip_funcs, apply_strip_func,
                                       assert_scaler, set_psg_sample_rate,
@@ -52,7 +53,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         no_hypnogram == True another should be a hypnogram/sleep stages/labels
         file. The PSG(/HYP) files are automatically automatically inferred
         using a set of simple rules when psg_regex or hyp_regex are None
-        (refer to the 'utime.dataset.utils.find_psg_and_hyp' function).
+        (refer to the 'sleeputils.dataset.utils.find_psg_and_hyp' function).
         Otherwise, the psg_regex and/or hyp_regex is used to match against
         folder content. Each regex should have exactly one match within
         'subject_dir'.
@@ -152,7 +153,6 @@ class SleepStudy(SubjectDirSleepStudyBase):
             raise RuntimeError("Setting the 'load_time_random_channel_selector' "
                                "attribute is not possible with set values in "
                                "'select_channels'")
-        from utime.io.channels import RandomChannelSelector
         if channel_selector is not None and not \
                 isinstance(channel_selector, RandomChannelSelector):
             raise TypeError("Expected 'channel_selector' argument to be of "
@@ -231,13 +231,13 @@ class SleepStudy(SubjectDirSleepStudyBase):
         Sets a strip function. Strip functions are applied to the PSG/HYP pair
         at load time and may deal with minor differences between the length
         of the PSG and HYP (e.g. if the PSG is longer than the HYP file).
-        See utime.preprocessing.strip_funcs
+        See sleeputils.preprocessing.strip_funcs
 
         Forces a reload if self.loaded is True
 
         Args:
             strip_func_str: A string naming a strip_func in:
-                            utime.preprocessing.strip_funcs
+                            sleeputils.preprocessing.strip_funcs
             kwargs:         Other kw arguments that will be passed to the strip
                             function.
         """
@@ -263,7 +263,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
 
         Args:
             qc_func:  A string naming a quality control function in:
-                      utime.preprocessing.quality_control_funcs
+                      sleeputils.preprocessing.quality_control_funcs
             **kwargs: Parameters passed to the quality control func at load
         """
         if quality_control_func not in quality_control_funcs.__dict__:
@@ -359,7 +359,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
             self.raise_err(RuntimeError, "PSG and hypnogram are not equally "
                                          "long in seconds. Consider setting a "
                                          "strip_function. "
-                                         "See utime.preprocessing.strip_funcs.")
+                                         "See sleeputils.preprocessing.strip_funcs.")
 
         if self.quality_control_func:
             # Run over epochs and assess if epoch-specific changes should be

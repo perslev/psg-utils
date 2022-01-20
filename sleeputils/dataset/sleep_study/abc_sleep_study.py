@@ -3,6 +3,8 @@ import numpy as np
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from sleeputils import Defaults
+from sleeputils.utils import ensure_list_or_tuple
+
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +167,7 @@ class AbstractBaseSleepStudy(ABC):
 
     @property
     def hypnogram(self):
-        """ Returns the hypnogram (see utime.hypnogram), may be None """
+        """ Returns the hypnogram (see sleeputils.hypnogram), may be None """
         return self._hypnogram
 
     @property
@@ -254,7 +256,6 @@ class AbstractBaseSleepStudy(ABC):
             if not isinstance(channels, (list, tuple)):
                 raise TypeError(e.format(channels))
             if len(channels) == 1:
-                from utime.utils import ensure_list_or_tuple
                 channels = [ensure_list_or_tuple(channels[0])]
             for chan in channels:
                 if not isinstance(chan, (list, tuple)):
@@ -378,9 +379,9 @@ class AbstractBaseSleepStudy(ABC):
             period_sec: The starting second of the period to plot
             out_path:   Path to save the figure to
         """
+        from sleeputils.visualization.psg_plotting import plot_period
         if bool(period_idx) == bool(period_sec):
             raise ValueError("Must specify either period_idx or period_sec.")
-        from utime.visualization.psg_plotting import plot_period
         period_sec = period_sec or self.period_idx_to_sec(period_idx)
         x = self.get_psg_period_at_sec(period_sec)
         if not self.no_hypnogram:
@@ -405,9 +406,9 @@ class AbstractBaseSleepStudy(ABC):
             out_path:           Path to save the figure to
             highlight_periods:  Plot period-separating vertical lines
         """
+        from sleeputils.visualization.psg_plotting import plot_periods
         if bool(period_idxs) == bool(period_secs):
             raise ValueError("Must specify either period_idxs or period_secs.")
-        from utime.visualization.psg_plotting import plot_periods
         period_secs = list(period_secs or map(self.period_idx_to_sec,
                                               period_idxs))
         if any(np.diff(period_secs) != self.period_length_sec):

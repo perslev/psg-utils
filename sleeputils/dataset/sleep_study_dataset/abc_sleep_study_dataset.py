@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 from abc import ABC, abstractmethod
-from utime import Defaults
+from sleeputils import Defaults
 
 logger = logging.getLogger(__name__)
 

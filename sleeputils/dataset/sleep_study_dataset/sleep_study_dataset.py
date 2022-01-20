@@ -1,5 +1,6 @@
 import logging
 from sleeputils.dataset import SleepStudy
+from sleeputils.io.channels import RandomChannelSelector
 from sleeputils.dataset.sleep_study_dataset.subject_dir_sleep_study_dataset_base \
     import SubjectDirSleepStudyDatasetBase
 
@@ -71,7 +72,6 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
         if len(channel_groups) == 0 or channel_groups[0] is None:
             random_selector = None
         else:
-            from utime.io.channels import RandomChannelSelector
             random_selector = RandomChannelSelector(*channel_groups)
         self.log("Setting load-time random channel selector: "
                  "{}".format(random_selector))

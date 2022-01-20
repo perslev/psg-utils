@@ -1,5 +1,5 @@
 import logging
-from utime.errors import CouldNotLoadError
+from sleeputils.errors import CouldNotLoadError
 from threading import Lock, Thread
 from queue import Queue
 from time import sleep

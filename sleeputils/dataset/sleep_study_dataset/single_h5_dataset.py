@@ -3,6 +3,7 @@ import os
 import re
 import h5py
 import atexit
+from sleeputils.io.channels import RandomChannelSelector
 from sleeputils.dataset.sleep_study_dataset.abc_sleep_study_dataset import AbstractBaseSleepStudyDataset
 from sleeputils.dataset.sleep_study import H5SleepStudy
 
@@ -61,7 +62,6 @@ class H5Dataset(AbstractBaseSleepStudyDataset):
         if len(channel_groups) == 0 or channel_groups[0] is None:
             random_selector = None
         else:
-            from utime.io.channels import RandomChannelSelector
             random_selector = RandomChannelSelector(*channel_groups)
         self.log("Setting access-time random channel selector: "
                  "{}".format(random_selector))

@@ -32,7 +32,7 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
         no_hypnogram == True another should be a hypnogram/sleep stages/labels
         file. The PSG(/HYP) files are automatically automatically inferred
         using a set of simple rules when psg_regex or hyp_regex are None
-        (refer to the 'utime.dataset.utils.find_psg_and_hyp' function).
+        (refer to the 'sleeputils.dataset.utils.find_psg_and_hyp' function).
         Otherwise, the psg_regex and/or hyp_regex is used to match against
         folder content. Each regex should have exactly one match within
         'subject_dir'.

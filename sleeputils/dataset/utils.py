@@ -2,7 +2,7 @@
 A set of helper functions for finding subject folders and PSG/HYP file pairs
 within such.
 
-These functions are used in particular by the utime.dataset SleepStudy and
+These functions are used in particular by the sleeputils.dataset SleepStudy and
 SleepStudyDataset objects.
 """
 
@@ -13,8 +13,7 @@ import re
 def unpack_file_list(file_list_path):
     """
     Utility function typically used to read the filenames stored in a
-    LIST_OF_FILES.txt file (created by the utime.bin.cv_split script in some
-    circumstances).
+    text file with 1 absolute path to a file per line in the file.
 
     Simply reads all lines of the specified file and returns them as a list,
     ignoring empty lines.
@@ -245,9 +244,8 @@ def find_subject_folders(data_dir, folder_regex=None):
     'folder_regex', if specified, otherwise all non-hidden sub-folders.
 
     If a folder_regex is not specified, a file named 'LIST_OF_FILES.txt'
-    exactly will also be considered. This file is created by the
-    utime.bin.cv_split script in some circumstances, and stores paths to
-    subject_dirs.
+    exactly will also be considered. This file should store absolute paths to
+    subject_dirs, one path per line.
 
     If the LIST_OF_FILES.txt file is found (using either method) the file will
     be unpacked (/read, see unpack_file_list) and its content extended with
