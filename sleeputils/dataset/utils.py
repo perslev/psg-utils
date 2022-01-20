@@ -65,6 +65,26 @@ def match_n_in_folder(folder_path, regex, num_expected_matches=1):
         return matches
 
 
+def assert_all_loaded(pairs, raise_=True):
+    """
+    Returns True if all SleepStudy objects in 'pairs' have the 'loaded'
+    property set to True, otherwise returns False.
+
+    If raise_ is True, raises a NotImplementedError if one or more objects are
+    not loaded. Otherwise, returns the value of the assessment.
+
+    Temp. until queue functionality implemented
+    """
+    loaded_pairs = [p for p in pairs if p.loaded]
+    if len(loaded_pairs) != len(pairs):
+        if raise_:
+            raise NotImplementedError("BatchSequence currently requires all"
+                                      " samples to be loaded")
+        else:
+            return False
+    return True
+
+
 def infer_hyp_file(subject_dir,
                    tries=("hypnogram", "hypno", "hyp", "stage", "label")):
     """

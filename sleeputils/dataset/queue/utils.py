@@ -1,7 +1,6 @@
 import logging
-from sleeputils.utils import ensure_list_or_tuple
-from sleeputils.dataset.queue import (StudyLoader, LimitationQueue,
-                                      LazyQueue, EagerQueue)
+from sleeputils.dataset.sleep_study_dataset import H5Dataset
+from sleeputils.dataset.queue import StudyLoader, LimitationQueue, LazyQueue, EagerQueue
 
 logger = logging.getLogger(__name__)
 
@@ -13,57 +12,63 @@ QUEUE_TYPE_TO_CLS = {
 }
 
 
-def get_dataset_queues(datasets,
-                       queue_type,
-                       n_load_threads=7,
-                       **kwargs):
+def get_data_queues(datasets,
+                    queue_type,
+                    max_loaded_per_dataset,
+                    num_access_before_reload,
+                    study_loader=None):
     """
-    TODO
+    TODO.
 
-    :param datasets:
-    :param queue_type:
-    :param n_load_threads:
-    :param kwargs:
-    :return:
+    Args:
+
+    Returns:
+
     """
-    if datasets is None:
-        return None
-    datasets = ensure_list_or_tuple(datasets)
+    map_ = {'eager': EagerQueue,
+            'lazy': LazyQueue,
+            'limitation': LimitationQueue}
+    queue_type = map_[queue_type.lower()]
+    logger.info("Using data queue type: {}".format(queue_type.__name__))
 
-    # Prepare study loader object
-    max_loaded = kwargs.get("max_loaded_per_dataset", 0) * len(datasets)
-    study_loader = StudyLoader(n_threads=n_load_threads,
-                               max_queue_size=max_loaded or None)
+    if queue_type is LimitationQueue:
+        if study_loader is None:
+            logger.info("Creating study loader...")
+            # Get loader for limitation queue(s)
+            max_loaded = (max_loaded_per_dataset or 0) * len(datasets)
+            study_loader = StudyLoader(n_threads=7,
+                                       max_queue_size=max_loaded or None)
+    else:
+        study_loader = None
 
-    # Get a queue for each dataset
-    queues = []
-    queue_cls = QUEUE_TYPE_TO_CLS[queue_type.lower()]
+    dataset_queues = []
     for dataset in datasets:
-        queue = queue_cls(
+        if max_loaded_per_dataset >= len(dataset) and queue_type is LimitationQueue:
+            # TODO: Implement load/access_time_random_channel_selector for EagerQueue, see NotImplementedError below.
+            logger.warning(f"Using '{queue_type.__name__}' for dataset {dataset} even though max_loaded_per_dataset = {max_loaded_per_dataset} "
+                           f">= len(dataset) = {len(dataset)})")
+            # queue_type = EagerQueue
+        if queue_type is EagerQueue and not isinstance(dataset, H5Dataset) and \
+                (any([getattr(ss, 'load_time_random_channel_selector', False) or
+                      getattr(ss, 'access_time_random_channel_selector', False) for ss in dataset])):
+            raise NotImplementedError(
+                "The 'eager' data loading queue currently does not support datasets with "
+                "the 'load_time_channel_sampling_groups' or "
+                "'access_time_channel_sampling_groups' attributes set. "
+                "If you want to train using random channel combinations, either "
+                "pre-process the data using the 'ut preprocess' command and then re-run "
+                "training using 'ut train --preprocessed', or run training with the "
+                "limitation queue loader using the '--train_queue_type "
+                "limitation' command."
+            )
+        dataset_queues.append(queue_type(
             dataset=dataset,
-            max_loaded=kwargs.get("max_loaded_per_dataset"),
-            study_loader=study_loader,
-            **kwargs
-        )
-        queues.append(queue)
-    return queues
-
-
-def assert_all_loaded(pairs, raise_=True):
-    """
-    Returns True if all SleepStudy objects in 'pairs' have the 'loaded'
-    property set to True, otherwise returns False.
-
-    If raise_ is True, raises a NotImplementedError if one or more objects are
-    not loaded. Otherwise, returns the value of the assessment.
-
-    Temp. until queue functionality implemented
-    """
-    loaded_pairs = [p for p in pairs if p.loaded]
-    if len(loaded_pairs) != len(pairs):
-        if raise_:
-            raise NotImplementedError("BatchSequence currently requires all"
-                                      " samples to be loaded")
-        else:
-            return False
-    return True
+            max_loaded=max_loaded_per_dataset,
+            num_access_before_reload=num_access_before_reload,  # TODO
+            preload_now=True,
+            await_preload=False,
+            study_loader=study_loader
+        ))
+    if study_loader:
+        study_loader.join()
+    return dataset_queues
