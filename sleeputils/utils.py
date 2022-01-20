@@ -2,9 +2,13 @@
 A set of general utility functions used across the codebase
 """
 
+import logging
+import os
+import psutil
 import numpy as np
 from contextlib import contextmanager
-import logging
+
+logger = logging.getLogger(__name__)
 
 
 def exactly_one_specified(*inputs):
@@ -27,26 +31,6 @@ def b_if_a_is_none(a, b):
         return b
     else:
         return a
-
-
-def assert_all_loaded(pairs, raise_=True):
-    """
-    Returns True if all SleepStudy objects in 'pairs' have the 'loaded'
-    property set to True, otherwise returns False.
-
-    If raise_ is True, raises a NotImplementedError if one or more objects are
-    not loaded. Otherwise, returns the value of the assessment.
-
-    Temp. until queue functionality implemented
-    """
-    loaded_pairs = [p for p in pairs if p.loaded]
-    if len(loaded_pairs) != len(pairs):
-        if raise_:
-            raise NotImplementedError("BatchSequence currently requires all"
-                                      " samples to be loaded")
-        else:
-            return False
-    return True
 
 
 def ensure_list_or_tuple(obj):
@@ -102,7 +86,5 @@ def mne_no_log_context():
 
 def get_memory_usage():
     """ Returns the current process memory usage in bytes """
-    import os
-    import psutil
     process = psutil.Process(os.getpid())
     return process.memory_info().rss
