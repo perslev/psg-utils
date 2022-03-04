@@ -49,12 +49,12 @@ class SparseHypnogram(object):
         }
 
         # Check sorted init times
-        if np.any(np.diff(init_times_sec) < 0):
+        if np.any(np.diff(self.inits) < 0):
             raise ValueError("Array of init times must be sorted.")
         # Check init times and durations match
-        if not np.all(np.isclose(np.diff(init_times_sec),
-                                 durations_sec[:-1])):
-            raise ValueError("Init times and durations do not match.")
+        diffs = np.isclose(np.diff(self.inits), durations_sec[:-1])
+        if not np.all(diffs):
+            raise ValueError("Init times and durations do not match.", self.inits[:-1][np.logical_not(diffs)])
 
     def __str__(self):
         return "SparseHypnogram(start={}s, end={}s, " \
