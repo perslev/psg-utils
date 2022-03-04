@@ -1,5 +1,5 @@
 import logging
-from sleeputils.queue.base_queue import BaseQueue
+from sleeputils.dataset.queue.base_queue import BaseQueue
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
