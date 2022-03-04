@@ -31,7 +31,6 @@ import numpy as np
 from sleeputils.hypnogram import SparseHypnogram
 from sleeputils.hypnogram.formats import StartDurationStageFormat
 from sleeputils.hypnogram.stage_mapper import create_variable_ann_to_class_int_dict
-from sleeputils.io.hypnogram.hyp_extractors import extract_from_start_dur_stage
 
 logger = logging.getLogger(__name__)
 
@@ -372,6 +371,7 @@ def load_events_file(events_file_path):
     Returns:
         A StartDurationStage format tuple
     """
+    from sleeputils.io.hypnogram.hyp_extractors import extract_from_start_dur_stage
     events = list(zip(*extract_from_start_dur_stage(events_file_path)))
     # Make sure events are sorted by init time
     events = sorted(events, key=lambda x: x[0])
