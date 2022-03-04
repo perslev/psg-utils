@@ -21,7 +21,6 @@ import warnings
 import numpy as np
 import h5py
 from datetime import datetime
-from sleeputils.io.channels.utils import check_duplicate_channels
 from sleeputils.errors import (MissingHeaderFieldError, HeaderFieldTypeError,
                                LengthZeroSignalError, H5VariableAttributesError,
                                VariableSampleRateError, FloatSampleRateWarning)
@@ -58,6 +57,7 @@ def _assert_header(header):
         raise LengthZeroSignalError(f"Expected key 'length' to be a non-zero integer, "
                                     f"but header {header} has value {header['length']}")
     # Warn on duplicate channels
+    from sleeputils.io.channels.utils import check_duplicate_channels
     check_duplicate_channels(header['channel_names'], raise_or_warn="warn")
     return header
 
