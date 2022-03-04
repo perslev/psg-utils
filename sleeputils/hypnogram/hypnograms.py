@@ -38,6 +38,9 @@ class SparseHypnogram(object):
             init_times_sec.insert(0, 0)
             durations_sec.insert(0, init_times_sec[1])
             sleep_stages.insert(0, Defaults.OUT_OF_BOUNDS[1])
+        if durations_sec[-1] % period_length_sec:
+            durations_sec = self.correct_last_duration(durations_sec)
+
         self.inits = np.array(init_times_sec, dtype=np.int32)
         self.durations = np.array(durations_sec, dtype=np.int32)
         self.stages = np.array(sleep_stages, dtype=np.uint8)
@@ -75,6 +78,12 @@ class SparseHypnogram(object):
         """ Returns the unique classes/stages of the hypnogram """
         return np.unique(self.stages)
 
+    def correct_last_duration(self, durations_sec):
+        # Increase last duration to a number divisible by the period length
+        missing = int(np.ceil(durations_sec[-1] / self.period_length_sec) * self.period_length_sec - durations_sec[-1])
+        durations_sec[-1] += missing
+        return durations_sec
+
     @property
     def end_time(self):
         """ Hypnogram end time (seconds) """
@@ -94,6 +103,19 @@ class SparseHypnogram(object):
         """
         return np.sum(self.durations)
 
+    def _extend_end_time(self, new_end_second):
+        length_diff = new_end_second - self.end_time
+        self.inits = np.append(self.inits, [self.end_time], axis=0)
+        self.durations = np.append(self.durations, [length_diff], axis=0)
+        self.stages = np.append(self.stages, [Defaults.UNKNOWN[1]], axis=0)
+
+    def _shorten_end_time(self, new_end_second):
+        init_ind = np.where(new_end_second > self.inits)[0][-1]
+        self.inits = self.inits[:init_ind+1]
+        self.stages = self.stages[:init_ind+1]
+        self.durations = self.durations[:init_ind+1]
+        self.durations[-1] -= self.end_time - new_end_second
+
     def set_new_end_time(self, new_end_second):
         """
         Trim the hypnogram from the tail by setting a new (shorter) end-time.
@@ -104,18 +126,10 @@ class SparseHypnogram(object):
         """
         # Find index of the new end time
         if new_end_second > self.end_time:
-            raise ValueError("New end second {} is out of bounds for "
-                             "hypnogram of length {} seconds".format(
-                new_end_second, self.end_time
-            ))
-        init_ind = np.where(new_end_second > self.inits)[0][-1]
-        self.inits = self.inits[:init_ind+1]
-        self.stages = self.stages[:init_ind+1]
-        self.durations = self.durations[:init_ind+1]
-
-        # Update last duration
-        old_end = self.inits[-1] + self.durations[-1]
-        self.durations[-1] -= old_end - new_end_second
+            self._extend_end_time(new_end_second)
+        else:
+            self._shorten_end_time(new_end_second)
+        self.durations = self.correct_last_duration(self.durations)
 
     def get_stage_at_sec(self, second):
         """
