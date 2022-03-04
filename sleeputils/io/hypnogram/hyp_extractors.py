@@ -11,9 +11,9 @@ import os
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from utime import Defaults
-from utime.hypnogram.formats import StartDurationStageFormat
-from utime.hypnogram.utils import sparse_hypnogram_from_ids_format, ndarray_to_ids_format
+from sleeputils import Defaults
+from sleeputils.hypnogram.formats import StartDurationStageFormat
+from sleeputils.hypnogram.utils import sparse_hypnogram_from_ids_format, ndarray_to_ids_format, squeeze_events
 
 
 def extract_from_edf(file_path, **kwargs):
@@ -328,28 +328,6 @@ _EXTRACT_FUNCS = {
     "STAGES": extract_from_stages_csv,
     "nchsdb": extract_from_nchsdb
 }
-
-
-def squeeze_events(start_sec, duration_sec, annotations):
-    """
-    Takes a list of IDS events of the form (start_sec, durs_sec, stage_str) and returns a list of
-    similar tuples but with consecutive similar stages are merged.
-
-    Args:
-        start_sec:     A list of int/float event start times in seconds
-        duration_sec:  A list of int/float event durations in seconds
-        annotations:   A list of string stage/event annotations
-    """
-    squeezed = []
-    running = [start_sec[0], duration_sec[0], annotations[0]]
-    for start, dur, stage in zip(start_sec[1:], duration_sec[1:], annotations[1:]):
-        if start == running[0] + running[1] and stage == running[2]:
-            running[1] += dur
-        else:
-            squeezed.append(tuple(running))
-            running = [start, dur, stage]
-    squeezed.append(tuple(running))
-    return tuple(zip(*squeezed))
 
 
 def extract_ids_from_hyp_file(file_path, period_length_sec=None, sample_rate=None, extract_func=None, replace_zero_durations=False):
