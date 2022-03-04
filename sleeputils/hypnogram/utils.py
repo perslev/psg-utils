@@ -289,6 +289,28 @@ def sparse_hypnogram_from_ids_format(ids_tuple, period_length_sec, ann_to_class)
     return sparse_hyp, ann_to_class
 
 
+def squeeze_events(start_sec, duration_sec, annotations):
+    """
+    Takes a list of IDS events of the form (start_sec, durs_sec, stage_str) and returns a list of
+    similar tuples but with consecutive similar stages are merged.
+
+    Args:
+        start_sec:     A list of int/float event start times in seconds
+        duration_sec:  A list of int/float event durations in seconds
+        annotations:   A list of string stage/event annotations
+    """
+    squeezed = []
+    running = [start_sec[0], duration_sec[0], annotations[0]]
+    for start, dur, stage in zip(start_sec[1:], duration_sec[1:], annotations[1:]):
+        if start == running[0] + running[1] and stage == running[2]:
+            running[1] += dur
+        else:
+            squeezed.append(tuple(running))
+            running = [start, dur, stage]
+    squeezed.append(tuple(running))
+    return tuple(zip(*squeezed))
+
+
 def hyp_has_gaps(init_times_sec, durations_sec):
     """
     Checks if a hypnogram as specified by a list of init times in seconds and a list of
