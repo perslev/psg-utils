@@ -3,20 +3,17 @@ Functions for loading various types of hypnogram/sleep stage/labels file
 formats from disk. Returns raw data either as a numpy array or
 StartDurationStageFormat tuples.
 
-Functions in sleeputils.io.extractors.hyp_extractors will convert these data types
-into sleeputils.hypnogram objects which are used for all downstream operations.
+Functions in utime.io.extractors.hyp_extractors will convert these data types
+into utime.hypnogram objects which are used for all downstream operations.
 """
 
-import logging
 import os
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from sleeputils import Defaults
-from sleeputils.hypnogram.formats import StartDurationStageFormat
-from sleeputils.hypnogram.utils import sparse_hypnogram_from_ids_format, ndarray_to_ids_format
-
-logger = logging.getLogger(__name__)
+from utime import Defaults
+from utime.hypnogram.formats import StartDurationStageFormat
+from utime.hypnogram.utils import sparse_hypnogram_from_ids_format, ndarray_to_ids_format
 
 
 def extract_from_edf(file_path, **kwargs):
@@ -25,7 +22,7 @@ def extract_from_edf(file_path, **kwargs):
     Uses BaseEDFReader from .dhedreader to extract the data as
     Start-Duration-Stage lists. Returns data of type StartDurationStageFormat.
 
-    See sleeputils.hypnogram.formats.StartDurationStageFormat
+    See utime.hypnogram.formats.StartDurationStageFormat
 
     Returns:
         A StartDurationStageFormat object
@@ -43,7 +40,7 @@ def extract_from_start_dur_stage(file_path, **kwargs):
     """
     Loader for CSV-like files that store hypnogram information in the
     Start-Duration-Stage format.
-    See sleeputils.hypnogram.formats.StartDurationStageFormat
+    See utime.hypnogram.formats.StartDurationStageFormat
 
     Returns:
         A StartDurationStageFormat object
@@ -115,6 +112,7 @@ def extract_from_stg_txt(file_path, period_length_sec, sample_rate):
          3: Defaults.NON_REM_STAGE_3[0],
          4: Defaults.NON_REM_STAGE_3[0],
          5: Defaults.REM[0],
+         6: Defaults.UNKNOWN[0],
          7: Defaults.UNKNOWN[0]}.get
     )
     # Map integer stages to default string values
@@ -133,17 +131,11 @@ def extract_from_stg_txt(file_path, period_length_sec, sample_rate):
     )
 
 
-def relative_time_stages_to_ids(relative_inits_sec, stages, durations=None, period_length_sec=None):
-    if (durations is None) == (period_length_sec is None):
-        raise ValueError("Must specify exactly one of 'durations' (list) or 'period_length_sec' (int).")
-    if durations is None:
-        durations = [period_length_sec] * len(stages)
+def relative_time_stages_to_ids(relative_inits_sec, durations, stages):
     # Filter Nones/False/empty from stages
-    relative_inits_sec, durations, stages = zip(*list(filter(lambda s: s[-1], zip(relative_inits_sec,
-                                                                                  durations,
-                                                                                  stages))))
+    relative_inits_sec, durations, stages_dense = filter_none_events(relative_inits_sec, durations, stages)
     merged_inits, merged_durs, merged_stages = [], [], []
-    for init_sec, duration, stage in zip(relative_inits_sec, durations, stages):
+    for init_sec, duration, stage in zip(relative_inits_sec, durations, stages_dense):
         if merged_stages and (stage == merged_stages[-1] and (merged_inits[-1] + merged_durs[-1]) == init_sec):
             # Continued stage, update last entry
             merged_durs[-1] += duration
@@ -156,19 +148,29 @@ def relative_time_stages_to_ids(relative_inits_sec, stages, durations=None, peri
 
 
 def correct_for_pauses(event_time, pauses):
+    new_event_time = None
     for start, end in pauses:
-        if event_time > start:
-            pause_length = end-start
-            event_time = event_time - (end-start)
+        if event_time > start and event_time > end:
+            # After pause, correct
+            new_event_time = (new_event_time or event_time) - (end-start)
+        elif event_time < start:
+            # Before pause, skip
+            continue
         else:
-            raise NotImplementedError(f"Not checked yet. {event_time} {pauses}")
-    return event_time
+            # In middle of pause
+            raise NotImplementedError(f"Not checked yet. {event_time}, {new_event_time} {pauses}")
+    return new_event_time or event_time
 
 
-def absolute_time_stages_to_relative_ids(start_times, stages_dense, start_time,
-                                         period_length_sec, pause_periods=None):
+def filter_none_events(start_times, durations, stages_dense):
     # Filter Nones/False/empty from stages
-    start_times, stages_dense = zip(*list(filter(lambda s: s[1], zip(start_times, stages_dense))))
+    filter_func = lambda s: s[-1] is not None and s[-1] != "None"
+    start_times, durations, stages_dense = zip(*list(filter(filter_func, zip(start_times, durations, stages_dense))))
+    return start_times, durations, stages_dense
+
+
+def absolute_time_stages_to_relative_ids(start_times, durations, stages_dense, start_time, pause_periods=None):
+    start_times, durations, stages_dense = filter_none_events(start_times, durations, stages_dense)
     relative_times, stages = [], []
     for event_index, (event_time, stage) in enumerate(zip(start_times, stages_dense)):
         if pause_periods:
@@ -179,15 +181,20 @@ def absolute_time_stages_to_relative_ids(start_times, stages_dense, start_time,
     return relative_time_stages_to_ids(
         relative_inits_sec=relative_times,
         stages=stages,
-        durations=None,
-        period_length_sec=period_length_sec
+        durations=durations
     )
 
 
-def init_strings_to_datetime(inits, date_fmt):
+def init_strings_to_datetime(inits, date_fmt, replace=None):
     dts = []
     for i in range(len(inits)):
-        date = datetime.strptime(inits[i], date_fmt)
+        try:
+            date = datetime.strptime(inits[i], date_fmt)
+        except TypeError as e:
+            print(inits[i], i, str(e))
+            raise e
+        if replace:
+            date = date.replace(**replace)
         if i != 0:
             # Check if we passed midnight
             while (date - dts[i-1]).total_seconds() < 0:
@@ -215,7 +222,8 @@ def extract_from_wsc_allscore(file_path, period_length_sec, sample_rate, event_d
          "STAGE - N1": Defaults.NON_REM_STAGE_1[0],
          "STAGE - N2": Defaults.NON_REM_STAGE_2[0],
          "STAGE - N3": Defaults.NON_REM_STAGE_3[0],
-         "STAGE - R": Defaults.REM[0]}.get
+         "STAGE - R": Defaults.REM[0],
+         "STAGE - NO STAGE": Defaults.UNKNOWN[0]}.get
     )
     stages = map_(list(map(lambda s: str(s).strip(), events)))
     inits, durs, stages = absolute_time_stages_to_relative_ids(
@@ -223,7 +231,7 @@ def extract_from_wsc_allscore(file_path, period_length_sec, sample_rate, event_d
         stages_dense=stages,
         start_time=start_time,
         pause_periods=pause_periods,
-        period_length_sec=period_length_sec
+        durations=[period_length_sec] * len(stages)
     )
     # Update durations to span from event index i to event index i+1
     for i in range(len(inits)-1):
@@ -232,33 +240,49 @@ def extract_from_wsc_allscore(file_path, period_length_sec, sample_rate, event_d
 
 
 def extract_from_stages_csv(file_path, period_length_sec, sample_rate, event_date_fmt='%H:%M:%S'):
-    raise NotImplementedError("Not yet implemented.")
-    import mne
-    # Load the file start time
-    edf_path = file_path.replace(".csv", ".edf")
-    if not os.path.exists(edf_path):
-        raise OSError("The hyp loader 'extract_from_stages_csv' requires an EDF file at path '{}' when processing "
-                      "hypnogram in file '{}' in order to infer correct event start times relative to the EDF file. "
-                      "However, no EDF file exists at the path.".format(edf_path, file_path))
-    start_date = mne.io.read_raw_edf(edf_path, preload=False).info['meas_date']
-    if not start_date:
-        raise ValueError("Recording has no start time in EDF file at path '{}'. Cannot infer relative event start "
-                         "times in event file '{}'".format(edf_path, file_path))
-    df = pd.read_csv(file_path, names=['Start Time', 'Duration (seconds)', 'Event'])
+    df = pd.read_csv(file_path,
+                     sep=r'^([^,]+),[ ]?(\d+[.]?\d+)[ ]?,',
+                     engine='python',
+                     names=['Start Time', 'Duration (seconds)', 'Event'],
+                     skiprows=1
+                     )
+    events = list(map(lambda s: str(s).strip(), df['Event'].values))
+    try:
+        # Look for "Start Recording" event.
+        index = events.index('Beginning of Recording')
+        start_date = init_strings_to_datetime([df.iloc[index, 0]], event_date_fmt)[0]
+    except ValueError:
+        import mne
+        # Load the start time from EDF file
+        edf_path = file_path.replace(".csv", ".edf")
+        if not os.path.exists(edf_path):
+            raise OSError("The hyp loader 'extract_from_stages_csv' requires an EDF file at path '{}' when processing "
+                          "hypnogram in file '{}' in order to infer correct event start times relative to the EDF file. "
+                          "However, no EDF file exists at the path.".format(edf_path, file_path))
+        start_date = mne.io.read_raw_edf(edf_path, preload=False).info['meas_date']
+        if not start_date:
+            raise ValueError("Recording has no start time in EDF file at path '{}'. Cannot infer relative event start "
+                             "times in event file '{}'".format(edf_path, file_path))
+        assert isinstance(start_date, datetime)
     map_ = np.vectorize(
         {"Wake": Defaults.AWAKE[0],
          "Stage1": Defaults.NON_REM_STAGE_1[0],
          "Stage2": Defaults.NON_REM_STAGE_2[0],
          "Stage3": Defaults.NON_REM_STAGE_3[0],
-         "REM": Defaults.REM[0]}.get
+         "REM": Defaults.REM[0],
+         "UnknownStage": Defaults.UNKNOWN[0]}.get
     )
-    stages = map_(list(map(lambda s: str(s).strip(), df['Event'].values)))
+    stages = map_(events)
     return absolute_time_stages_to_relative_ids(
-        start_times=df['Start Time'],
+        start_times=init_strings_to_datetime(df['Start Time'].values, event_date_fmt, replace={
+            'tzinfo': start_date.tzinfo,
+            'day': start_date.day,
+            'month': start_date.month,
+            'year': start_date.year
+        }),
         stages_dense=stages,
-        start_date=start_date,
-        period_length_sec=period_length_sec,
-        event_date_fmt=event_date_fmt
+        start_time=start_date,
+        durations=df['Duration (seconds)'].values
     )
 
 
@@ -268,21 +292,25 @@ def extract_from_nchsdb(file_path, period_length_sec, sample_rate):
     durations = anots['duration'].values
     descriptions = list(anots['description'].values)
     map_ = np.vectorize({
-        "Sleep stage W": Defaults.AWAKE[0],
-        "Sleep stage N1": Defaults.NON_REM_STAGE_1[0],
-        "Sleep stage N2": Defaults.NON_REM_STAGE_2[0],
-        "Sleep stage N3": Defaults.NON_REM_STAGE_3[0],
-        "Sleep stage R": Defaults.REM[0],
-        "Sleep stage ?": Defaults.UNKNOWN[0]
-    }.get)
+                            "Sleep stage W": Defaults.AWAKE[0],
+                            "Sleep stage N1": Defaults.NON_REM_STAGE_1[0],
+                            "Sleep stage 1": Defaults.NON_REM_STAGE_1[0],
+                            "Sleep stage N2": Defaults.NON_REM_STAGE_2[0],
+                            "Sleep stage 2": Defaults.NON_REM_STAGE_2[0],
+                            "Sleep stage N3": Defaults.NON_REM_STAGE_3[0],
+                            "Sleep stage 3": Defaults.NON_REM_STAGE_3[0],
+                            "Sleep stage R": Defaults.REM[0],
+                            "Sleep stage ?": Defaults.UNKNOWN[0]
+                        }.get)
     stages = map_(list(map(lambda s: str(s).strip(), descriptions)))
     try:
         start_recording = onsets[descriptions.index('Start Recording')]
     except ValueError:
         # Not annotated, assume 0.0 offset
         start_recording = 0.0
+
     return relative_time_stages_to_ids(
-        relative_inits_sec=[init - start_recording for init in onsets],
+        relative_inits_sec=[np.round(init - start_recording) for init in onsets],
         stages=stages,
         durations=durations
     )
@@ -302,7 +330,29 @@ _EXTRACT_FUNCS = {
 }
 
 
-def extract_ids_from_hyp_file(file_path, period_length_sec=None, sample_rate=None, extract_func=None):
+def squeeze_events(start_sec, duration_sec, annotations):
+    """
+    Takes a list of IDS events of the form (start_sec, durs_sec, stage_str) and returns a list of
+    similar tuples but with consecutive similar stages are merged.
+
+    Args:
+        start_sec:     A list of int/float event start times in seconds
+        duration_sec:  A list of int/float event durations in seconds
+        annotations:   A list of string stage/event annotations
+    """
+    squeezed = []
+    running = [start_sec[0], duration_sec[0], annotations[0]]
+    for start, dur, stage in zip(start_sec[1:], duration_sec[1:], annotations[1:]):
+        if start == running[0] + running[1] and stage == running[2]:
+            running[1] += dur
+        else:
+            squeezed.append(tuple(running))
+            running = [start, dur, stage]
+    squeezed.append(tuple(running))
+    return tuple(zip(*squeezed))
+
+
+def extract_ids_from_hyp_file(file_path, period_length_sec=None, sample_rate=None, extract_func=None, replace_zero_durations=False):
     """
     Entry function for extracing start-duration-stage format data from variable input files
 
@@ -315,6 +365,7 @@ def extract_ids_from_hyp_file(file_path, period_length_sec=None, sample_rate=Non
         extract_func: callable, str or None: Callable or string identifier for callable as registered in _EXTRACT_FUNCS.
                                              If None, the file extension is used as string identifier, e.g. 'file.ids'
                                              will be loaded by the callable in _EXTRACT_FUNCS['ids'].
+        replace_zero_durations: False or int/float: If not False replaces duration of length exactly 0.0 with this value.
 
     Returns:
         A StartDurationStageFormat object
@@ -323,19 +374,27 @@ def extract_ids_from_hyp_file(file_path, period_length_sec=None, sample_rate=Non
         extract_func = os.path.split(file_path)[-1].split('.', 1)[-1].lower()
     if not callable(extract_func):
         extract_func = _EXTRACT_FUNCS[extract_func]
-    return extract_func(file_path=file_path,
-                        period_length_sec=period_length_sec,
-                        sample_rate=sample_rate)
+    inits, durs, stages = extract_func(file_path=file_path,
+                                       period_length_sec=period_length_sec,
+                                       sample_rate=sample_rate)
+    if replace_zero_durations:
+        durs = np.where(np.isclose(durs, 0), replace_zero_durations, durs)
+    return squeeze_events(inits, durs, stages)
 
 
-def extract_hyp_data(file_path, period_length_sec, annotation_dict, sample_rate):
+def extract_hyp_data(file_path, period_length_sec, annotation_dict, sample_rate, replace_zero_durations=False):
     """
     Load a hypnogram from a file at 'file_path'
 
     Returns:
         A SparseHypnogram object, annotation dict
     """
-    ids_tuple = extract_ids_from_hyp_file(file_path, period_length_sec, sample_rate)
+    ids_tuple = extract_ids_from_hyp_file(
+        file_path,
+        period_length_sec=period_length_sec,
+        sample_rate=sample_rate,
+        replace_zero_durations=replace_zero_durations
+    )
     return sparse_hypnogram_from_ids_format(
         ids_tuple=ids_tuple,
         period_length_sec=period_length_sec,
