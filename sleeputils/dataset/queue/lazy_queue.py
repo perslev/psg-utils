@@ -18,7 +18,6 @@ class LazyQueue(BaseQueue):
         TODO
         Args:
             dataset:
-            logger:
         """
         super(LazyQueue, self).__init__(
             dataset=dataset
