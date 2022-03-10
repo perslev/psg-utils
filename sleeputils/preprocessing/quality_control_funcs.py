@@ -99,14 +99,16 @@ def clip_noisy_values(psg, sample_rate, period_length_sec,
     return psg, chan_inds
 
 
-def apply_quality_control_func(sleep_study, sample_rate, warn=True):
+def apply_quality_control_func(sleep_study, sample_rate, warn_fraction=0.15):
     """
     Applies the quality control function set on a SleepStudy object to itself.
 
     Args:
-        sleep_study: A SleepStudy object
-        sample_rate: The sample rate of the currently set PSG.
-        warn:        TODO
+        sleep_study:    A SleepStudy object
+        sample_rate:    The sample rate of the currently set PSG.
+        warn_fraction:  If the fraction of epochs affected by the quality control function
+                        is >= 'warn_fraction' a logger warning is issued.
+                        Otherwise, a debug logging is issued.
 
     Returns:
         The PSG ndarray object to which QA has been applied.
@@ -125,10 +127,9 @@ def apply_quality_control_func(sleep_study, sample_rate, warn=True):
                   period_length_sec=sleep_study.period_length_sec,
                   **kwargs)
     for i, chan_inds in enumerate(inds):
-        if warn and len(chan_inds) != 0:
-            logger.warning("Quality control for sample '{}' affected "
-                           "{}/{} epochs in channel {}".format(sleep_study.identifier or "<identifier not passed>",
-                                                               len(chan_inds),
-                                                               sleep_study.n_periods,
-                                                               i))
+        fraction = len(chan_inds) / sleep_study.n_periods
+        warn_str = "Quality control for sample '{}' affected " \
+                   "{}/{} epochs in channel {}".format(sleep_study.identifier or "<identifier not passed>",
+                                                       len(chan_inds), sleep_study.n_periods, i)
+        logger.warning(warn_str) if fraction >= warn_fraction else logger.debug(warn_str)
     return psg
