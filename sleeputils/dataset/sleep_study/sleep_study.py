@@ -366,7 +366,8 @@ class SleepStudy(SubjectDirSleepStudyBase):
             # made to limit the influence of very high noise level ecochs etc.
             self._psg = apply_quality_control_func(self,
                                                    self.org_sample_rate,
-                                                   not bool(self.times_loaded))
+                                                   warn_fraction=0.15,
+                                                   warn=not bool(self.times_loaded))
 
         # Set different sample rate of PSG?
         if self.org_sample_rate != self.sample_rate:
