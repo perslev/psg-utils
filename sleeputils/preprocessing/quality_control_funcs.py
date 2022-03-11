@@ -99,7 +99,7 @@ def clip_noisy_values(psg, sample_rate, period_length_sec,
     return psg, chan_inds
 
 
-def apply_quality_control_func(sleep_study, sample_rate, warn_fraction=0.15):
+def apply_quality_control_func(sleep_study, sample_rate, warn_fraction=0.15, warn=True):
     """
     Applies the quality control function set on a SleepStudy object to itself.
 
@@ -109,6 +109,8 @@ def apply_quality_control_func(sleep_study, sample_rate, warn_fraction=0.15):
         warn_fraction:  If the fraction of epochs affected by the quality control function
                         is >= 'warn_fraction' a logger warning is issued.
                         Otherwise, a debug logging is issued.
+        warn            Whether to warn on warn_fraction exceeded. If False, do not warn no matter
+                        the fraction of epochs affected by QA.
 
     Returns:
         The PSG ndarray object to which QA has been applied.
@@ -126,10 +128,12 @@ def apply_quality_control_func(sleep_study, sample_rate, warn_fraction=0.15):
                   sample_rate=sample_rate,
                   period_length_sec=sleep_study.period_length_sec,
                   **kwargs)
-    for i, chan_inds in enumerate(inds):
-        fraction = len(chan_inds) / sleep_study.n_periods
-        warn_str = "Quality control for sample '{}' affected " \
-                   "{}/{} epochs in channel {}".format(sleep_study.identifier or "<identifier not passed>",
-                                                       len(chan_inds), sleep_study.n_periods, i)
-        logger.warning(warn_str) if fraction >= warn_fraction else logger.debug(warn_str)
+    if warn:
+        n_periods = int(psg.shape[0]/(sample_rate*sleep_study.period_length_sec))
+        for i, chan_inds in enumerate(inds):
+            fraction = len(chan_inds) / n_periods
+            warn_str = "Quality control for sample '{}' affected " \
+                       "{}/{} epochs in channel {}".format(sleep_study.identifier or "<identifier not passed>",
+                                                           len(chan_inds), n_periods, i)
+            logger.warning(warn_str) if fraction >= warn_fraction else logger.debug(warn_str)
     return psg
