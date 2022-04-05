@@ -22,7 +22,7 @@ def to_ids(start, durs, stage, out):
             out_f.write("{},{},{}\n".format(int(i), int(d), s))
 
 
-def to_h5_file(out_path, data, channel_names, sample_rate, date, dtype=np.float32):
+def to_h5_file(out_path, data, channel_names, sample_rate, date, dtype=np.float32, **kwargs):
     """
     Saves a NxC ndarray 'data' of PSG data (N samples, C channels) to a .h5
     archive at path 'out_path'. A list 'channel_names' of length C must be
