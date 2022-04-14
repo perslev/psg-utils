@@ -53,11 +53,11 @@ class AbstractBaseSleepStudy(ABC):
         raise NotImplemented
 
     @abstractmethod
-    def reload(self, warning):
+    def reload(self, warning, allow_missing_channels):
         raise NotImplemented
 
     @abstractmethod
-    def load(self):
+    def load(self, allow_missing_channels):
         raise NotImplemented
 
     @abstractmethod
@@ -152,9 +152,9 @@ class AbstractBaseSleepStudy(ABC):
         return self.n_channels
 
     @contextmanager
-    def loaded_in_context(self):
+    def loaded_in_context(self, allow_missing_channels=False):
         """ Context manager from automatic loading and unloading """
-        self.load()
+        self.load(allow_missing_channels=allow_missing_channels)
         try:
             yield self
         finally:

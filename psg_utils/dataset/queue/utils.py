@@ -53,8 +53,7 @@ def get_data_queues(datasets,
                       getattr(ss, 'access_time_random_channel_selector', False) for ss in dataset])):
             raise NotImplementedError(
                 "The 'eager' data loading queue currently does not support datasets with "
-                "the 'load_time_channel_sampling_groups' or "
-                "'access_time_channel_sampling_groups' attributes set. "
+                "the 'channel_sampling_groups' attribute set. "
                 "If you want to train using random channel combinations, either "
                 "pre-process the data using the 'ut preprocess' command and then re-run "
                 "training using 'ut train --preprocessed', or run training with the "

@@ -40,7 +40,7 @@ def check_duplicate_channels(channels, ref_channels=None, raise_or_warn="raise")
 
 def get_org_include_exclude_channel_montages(load_channels, header,
                                              ignore_reference_channels=False,
-                                             check_num_channels=True,
+                                             allow_missing_channels=True,
                                              allow_auto_referencing=True,
                                              check_duplicates=True):
     """
@@ -50,7 +50,7 @@ def get_org_include_exclude_channel_montages(load_channels, header,
         load_channels:
         header:
         ignore_reference_channels:
-        check_num_channels:
+        allow_missing_channels:
         allow_auto_referencing:
         check_duplicates:
 
@@ -66,7 +66,7 @@ def get_org_include_exclude_channel_montages(load_channels, header,
             include_channels = load_channels.match_ignore_reference(channels_in_file, take_target=True)
         else:
             include_channels = load_channels.match(channels_in_file, take_target=True)
-        if check_num_channels and len(include_channels) != len(load_channels):
+        if len(include_channels) != len(load_channels):
             if allow_auto_referencing and can_create_channels(load_channels, channels_in_file):
                 # Specified channels are referenced, e.g. C3-A2 and may be created from the available C3 and A2
                 channel_montage_creator = ChannelMontageCreator(
@@ -75,15 +75,20 @@ def get_org_include_exclude_channel_montages(load_channels, header,
                     allow_missing=False
                 )
                 include_channels = channel_montage_creator.channels_to_load.match(channels_in_file, take_target=True)
-            else:
+            elif not allow_missing_channels or len(include_channels) == 0:
                 raise ChannelNotFoundError(
                     "Could not load {} channels ({}) from file with {} channels "
-                    "({}). Found the follow {} matches: {}".format(
+                    "({}). Found the following {} matches: {}".format(
                         len(load_channels), load_channels.original_names,
                         len(channels_in_file), channels_in_file.original_names,
                         len(include_channels), include_channels.original_names
                     )
                 )
+            else:
+                logger.warning(f"Loading only {len(include_channels)} ({include_channels.original_names}) "
+                               f"channels although {len(load_channels)} ({load_channels.original_names}) "
+                               f"were requested. This is allowed only because the 'allow_missing_channels' "
+                               f"parameter was explicitly set True for this call.")
     else:
         include_channels = channels_in_file
     if check_duplicates:

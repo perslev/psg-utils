@@ -62,7 +62,7 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
         return "SleepStudyDataset(identifier: {}, N pairs: {}, N loaded: {})" \
                "".format(self.identifier, len(self), self.n_loaded)
 
-    def set_load_time_channel_sampling_groups(self, *channel_groups):
+    def set_channel_sampling_groups(self, *channel_groups):
         """
         TODO
 

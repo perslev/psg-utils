@@ -23,7 +23,7 @@ def load_psg(psg_file_path,
              header_file_path=None,
              ignore_reference_channels=False,
              load_time_channel_selector=None,
-             check_num_channels=True):
+             allow_missing_channels=True):
     """
     Returns a numpy object of shape NxC (N data points, C channels) and a
     dictionary of header information as given by 'extract_header'.
@@ -38,7 +38,7 @@ def load_psg(psg_file_path,
                        to load.
         ignore_reference_channels: TODO
         load_time_channel_selector: TODO
-        check_num_channels: TODO
+        allow_missing_channels: TODO
 
     Returns:
         A numpy array of shape NxC (N samples, C channels)
@@ -71,7 +71,7 @@ def load_psg(psg_file_path,
             load_channels=load_channels or header["channel_names"],
             header=header,
             ignore_reference_channels=ignore_reference_channels,
-            check_num_channels=check_num_channels,
+            allow_missing_channels=allow_missing_channels,
             allow_auto_referencing=True,
             check_duplicates=True
         )
@@ -139,7 +139,7 @@ def open_h5_archive(h5_file_path,
             load_channels=load_channels,
             header=header,
             ignore_reference_channels=ignore_reference_channels,
-            check_num_channels=check_num_channels
+            allow_missing_channels=check_num_channels
         )
     data = {}
     for chnl in include_channels:

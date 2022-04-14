@@ -281,7 +281,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         return not any((self.psg is None,
                         self.hypnogram is None))
 
-    def _load_with_any_in(self, channel_sets):
+    def _load_with_any_in(self, channel_sets, allow_missing_channels=False):
         """
         Normally not called directly, usually called from self._load.
 
@@ -292,6 +292,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         Args:
             channel_sets: List of lists of strings, each naming a channel to
                           load.
+            allow_missing_channels: A bool to indicate if missing channels are allowed or not.
 
         Returns:
             If one of the sets of channels could be loaded, returns the
@@ -308,7 +309,8 @@ class SleepStudy(SubjectDirSleepStudyBase):
                 psg, header = load_psg(psg_file_path=self.psg_file_path,
                                        load_channels=channel_set or None,
                                        load_time_channel_selector=temp,
-                                       header_file_path=self.header_file_path)
+                                       header_file_path=self.header_file_path,
+                                       allow_missing_channels=allow_missing_channels)
                 return psg, header
             except errors.ChannelNotFoundError as e:
                 if i < len(channel_sets) - 1:
@@ -324,7 +326,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
                                                       "{}".format(s, sa))
                     raise err from e
 
-    def _load(self):
+    def _load(self, allow_missing_channels=False):
         """
         Loads data from the PSG and HYP files
         -- If self.select_channels is set (aka non empty list), only the column
@@ -336,7 +338,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         -- If self.hyp_strip_func is set, this function will be applied to the
            hypnogram object.
         """
-        self._psg, header = self._load_with_any_in(self._try_channels)
+        self._psg, header = self._load_with_any_in(self._try_channels, allow_missing_channels)
         self._set_loaded_channels(header['channel_names'])
         self._set_header_fields(header)
 
@@ -402,13 +404,13 @@ class SleepStudy(SubjectDirSleepStudyBase):
         self._org_sample_rate = header["sample_rate"]
         self._sample_rate = self._sample_rate or self._org_sample_rate
 
-    def load(self, reload=False):
+    def load(self, reload=False, allow_missing_channels=False):
         """
         High-level function invoked to load the SleepStudy data
         """
         if reload or not self.loaded:
             try:
-                self._load()
+                self._load(allow_missing_channels)
             except Exception as e:
                 raise errors.CouldNotLoadError("Unexpected load error for sleep "
                                                "study {}. Please refer to the "
@@ -421,11 +423,11 @@ class SleepStudy(SubjectDirSleepStudyBase):
         for attr in self._none_on_unload:
             setattr(self, attr, None)
 
-    def reload(self, warning=True):
+    def reload(self, warning=True, allow_missing_channels=False):
         """ Unloads and loads """
         if warning and self.loaded:
             print("Reloading SleepStudy '{}'".format(self.identifier))
-        self.load(reload=True)
+        self.load(reload=True, allow_missing_channels=allow_missing_channels)
 
     def get_psg_shape(self):
         """

@@ -13,8 +13,7 @@ def select_sample_strip_scale_quality(*datasets, hparams):
     - [if applicable] SleepStudyDataset.set_strip_func()
     - [if applicable] SleepStudyDataset.set_quality_control_func()
     - [if applicable] SleepStudyDataset.set_scaler()
-    - [if applicable] set_load_time_channel_sampling_groups
-    - [if applicable] set_access_time_channel_sampling_groups
+    - [if applicable] SleepStudyDataset.set_channel_sampling_groups()
 
     Args:
         *datasets: Any number of SleepStudyDataset-like objects
@@ -29,28 +28,14 @@ def select_sample_strip_scale_quality(*datasets, hparams):
     list(map(lambda ds: ds.set_alternative_select_channels(alt_select), datasets))
 
     # Set load/access time channel sampler if specified
-    load_time_groups = tuple(hparams.get("load_time_channel_sampling_groups", []))
-    access_time_groups = tuple(hparams.get("access_time_channel_sampling_groups", []))
+    channel_groups = tuple(hparams.get("channel_sampling_groups", []))
     dataset_types = list(map(type, datasets))
-    if load_time_groups and access_time_groups:
-        raise ValueError("Should only specify at most one of the attributes "
-                         "'load_time_channel_sampling_groups' and "
-                         "'access_time_channel_sampling_groups' in the hyperparameter "
-                         "file at path {}".format(hparams.yaml_path))
-    if load_time_groups:
-        if hasattr(datasets[0], 'set_load_time_channel_sampling_groups'):
-            list(map(lambda ds: ds.set_load_time_channel_sampling_groups(*load_time_groups),
-                     datasets))
-        else:
+    if channel_groups:
+        try:
+            list(map(lambda ds: ds.set_channel_sampling_groups(*channel_groups), datasets))
+        except AttributeError as e:
             raise ValueError(f"One or more of the dataset types in {dataset_types} do not support "
-                             f"setting the 'load_time_channel_sampling_groups' attribute.")
-    if access_time_groups:
-        if hasattr(datasets[0], 'set_access_time_channel_sampling_groups'):
-            list(map(lambda ds: ds.set_access_time_channel_sampling_groups(*access_time_groups),
-                     datasets))
-        else:
-            raise ValueError(f"One or more of the dataset types {datasets} do not support "
-                             f"setting the 'access_time_channel_sampling_groups' attribute.")
+                             f"setting the 'set_channel_sampling_groups' attribute.") from e
 
     # Set sample rate
     if hasattr(datasets[0], 'set_sample_rate'):

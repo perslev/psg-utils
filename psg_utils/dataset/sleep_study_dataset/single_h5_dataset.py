@@ -52,7 +52,7 @@ class H5Dataset(AbstractBaseSleepStudyDataset):
         if not bool(self.h5_dataset_obj):
             raise RuntimeError("HDF5 archive was closed unexpectedly.")
 
-    def set_access_time_channel_sampling_groups(self, *channel_groups):
+    def set_channel_sampling_groups(self, *channel_groups):
         """
         TODO
 
