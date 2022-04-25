@@ -41,7 +41,11 @@ def extract_from_edf(psg_file_path, header, include_channels, exclude_channels, 
                            exclude=exclude_channels_short)
         # Update header with actually used sample rate
         header["sample_rate"] = int(edf.info['sfreq'])
-        return edf.get_data().T
+        data = edf.get_data().T
+        # Order channel data according to requested 'include_channels' ordering
+        order = [edf.info['ch_names'].index(channel) for channel in include_channels]
+        data = data[:, order]
+        return data
 
 
 def extract_from_wfdb(wfdb_file_path, include_channels, header, **kwargs):
@@ -73,35 +77,12 @@ def extract_from_h5(h5_file_path, include_channels, header, **kwargs):
     return data.T
 
 
-def extract_from_bin(bin_path, include_channels, exclude_channels, header,
-                     reshape_order="F", bin_dtype=np.dtype("<f4"), **kwargs):
-    """
-    TODO.
-
-    OBS: All data is loaded even if only a subset of channels, those in "include_channels", are returned.
-
-    Returns:
-        ndarray, shape NxC
-    """
-    with open(bin_path, "rb") as in_f:
-        data = np.fromfile(in_f, bin_dtype).reshape((-1, header["n_channels"]), order=reshape_order)
-    assert data.shape[0] == header["length"]
-    org_channel_names = header["channel_names"].original_names
-    if not np.all(np.isin(include_channels, org_channel_names)):
-        raise ChannelNotFoundError(f"Did not find one or more requested channels "
-                                   f"'{include_channels}' in file {bin_path} "
-                                   f"with channels {header['channel_names']}.")
-    keep_channels_mask = np.isin(org_channel_names, include_channels)
-    return data[:, keep_channels_mask]
-
-
 _EXT_TO_LOADER = {
     "edf": extract_from_edf,
     "mat": extract_from_wfdb,
     "dat": extract_from_wfdb,
     "h5": extract_from_h5,
-    "hdf5": extract_from_h5,
-    "bin": extract_from_bin
+    "hdf5": extract_from_h5
 }
 
 
