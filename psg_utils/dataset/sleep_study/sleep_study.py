@@ -89,7 +89,6 @@ class SleepStudy(SubjectDirSleepStudyBase):
         self._load_time_random_channel_selector = None
         self._strip_func = None
         self._quality_control_func = None
-        self._class_to_period_dict = None
         self._sample_rate = None
         self._date = None
         self._org_sample_rate = None
