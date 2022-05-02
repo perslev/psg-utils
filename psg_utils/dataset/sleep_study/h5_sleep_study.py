@@ -120,12 +120,15 @@ class H5SleepStudy(AbstractBaseSleepStudy):
             chan: self.h5_study_object['PSG'][chan.original_name] for chan in loaded_channels
         }
         self._set_loaded_channels(loaded_channels)
-        self._hypnogram = self.h5_study_object['hypnogram']
+        self._hypnogram = np.asarray(self.h5_study_object['hypnogram'])
+        self._class_to_period_dict = {str(class_int): np.asarray(class_indices) for class_int, class_indices
+                                      in self.h5_study_object['class_to_index'].values()}
 
     def unload(self):
         """ Sets the PSG and hypnogram properties to None """
         self._psg = None
         self._hypnogram = None
+        self._class_to_period_dict = None
 
     def reload(self, warning=True):
         """ Only sets the current channel visibility """
@@ -161,7 +164,7 @@ class H5SleepStudy(AbstractBaseSleepStudy):
         Returns:
 
         """
-        return self.translate_labels(np.array(self.hypnogram))
+        return self.translate_labels(self.hypnogram)
 
     def get_all_periods(self):
         """
@@ -204,7 +207,7 @@ class H5SleepStudy(AbstractBaseSleepStudy):
         Returns:
 
         """
-        return self.h5_study_object['class_to_index'][str(class_int)]
+        return self._class_to_period_dict[str(class_int)]
 
     def translate_labels(self, y):
         """
