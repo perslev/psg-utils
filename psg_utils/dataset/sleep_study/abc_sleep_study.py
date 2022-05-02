@@ -33,6 +33,7 @@ class AbstractBaseSleepStudy(ABC):
         # of these values to the load() function
         self._psg = None
         self._hypnogram = None
+        self._class_to_period_dict = None
         self._select_channels = None
         self._alternative_select_channels = None
 
