@@ -63,8 +63,9 @@ class StudyLoader:
             TODO
         """
         # Setup load thread pool
-        self._load_queue = Queue(maxsize=max_queue_size)
-        self._output_queue = Queue(maxsize=max_queue_size)
+        self.max_queue_size = max_queue_size
+        self._load_queue = Queue(maxsize=self.max_queue_size)
+        self._output_queue = Queue(maxsize=self.max_queue_size)
         self._load_errors_queue = Queue(maxsize=3)  # We probably want to raise
                                                     # an error if this queue
                                                     # gets to more than ~3!
@@ -109,15 +110,13 @@ class StudyLoader:
         for process_or_thread in self.processes_and_threads:
             process_or_thread.join()
 
-    @property
     def qsize(self):
         """ Returns the qsize of the load queue """
         return self._load_queue.qsize
 
     @property
     def maxsize(self):
-        """ Returns the maxsize of the load queue """
-        return self._load_queue.maxsize
+        return self.max_queue_size
 
     def join(self):
         """ Join on all queues """
