@@ -2,7 +2,7 @@ import logging
 from psg_utils.errors import CouldNotLoadError
 from threading import Thread
 from threading import Event as ThreadEvent
-from multiprocessing import Queue, Process, Lock, Event
+from multiprocessing import JoinableQueue, Process, Lock, Event, cpu_count
 from time import sleep
 
 logger = logging.getLogger(__name__)
@@ -64,11 +64,11 @@ class StudyLoader:
         """
         # Setup load thread pool
         self.max_queue_size = max_queue_size
-        self._load_queue = Queue(maxsize=self.max_queue_size)
-        self._output_queue = Queue(maxsize=self.max_queue_size)
-        self._load_errors_queue = Queue(maxsize=3)  # We probably want to raise
-                                                    # an error if this queue
-                                                    # gets to more than ~3!
+        self._load_queue = JoinableQueue(maxsize=self.max_queue_size)
+        self._output_queue = JoinableQueue(maxsize=self.max_queue_size)
+        self._load_errors_queue = JoinableQueue(maxsize=3)  # We probably want to raise
+                                                            # an error if this queue
+                                                            # gets to more than ~3!
         self.process_lock = Lock()
 
         args = [self._load_queue, self._output_queue, self._load_errors_queue, self.process_lock]
@@ -105,6 +105,7 @@ class StudyLoader:
         self.gather_errors_thread.start()
 
     def stop(self):
+        logger.info(f"Stopping N={len(self.processes_and_threads)} StudyLoader processes and threads...")
         for stop_event in self.stop_events:
             stop_event.set()
         for process_or_thread in self.processes_and_threads:
