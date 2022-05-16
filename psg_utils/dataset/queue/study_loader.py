@@ -1,13 +1,14 @@
 import logging
 from psg_utils.errors import CouldNotLoadError
-from threading import Lock, Thread
-from queue import Queue
+from threading import Thread
+from threading import Event as ThreadEvent
+from multiprocessing import Queue, Process, Lock, Event
 from time import sleep
 
 logger = logging.getLogger(__name__)
 
 
-def _load_func(load_queue, results_queue, load_errors_queue, lock):
+def _load_func(load_queue, results_queue, load_errors_queue, lock, stop_event):
     """
 
     Args:
@@ -16,7 +17,7 @@ def _load_func(load_queue, results_queue, load_errors_queue, lock):
     Returns:
 
     """
-    while True:
+    while not stop_event.is_set():
         to_load, dataset_id = load_queue.get()
         try:
             to_load.load()
@@ -30,8 +31,8 @@ def _load_func(load_queue, results_queue, load_errors_queue, lock):
             load_queue.task_done()
 
 
-def _gather_loaded(output_queue, registered_datasets):
-    while True:
+def _gather_loaded(output_queue, registered_datasets, stop_event):
+    while not stop_event.is_set():
         # Wait for studies in the output queue
         sleep_study, dataset_id = output_queue.get(block=True)
         load_put_function = registered_datasets[dataset_id][0]
@@ -39,8 +40,8 @@ def _gather_loaded(output_queue, registered_datasets):
         output_queue.task_done()
 
 
-def _gather_errors(load_errors_queue, registered_datasets):
-    while True:
+def _gather_errors(load_errors_queue, registered_datasets, stop_event):
+    while not stop_event.is_set():
         # Wait for studies in the output queue
         sleep_study, dataset_id = load_errors_queue.get(block=True)
         error_put_function = registered_datasets[dataset_id][1]
@@ -53,7 +54,7 @@ class StudyLoader:
     Implements a multithreading SleepStudy loading queue
     """
     def __init__(self,
-                 n_threads=5,
+                 n_load_processes=5,
                  max_queue_size=50):
         """
         Initialize a StudyLoader object from a list of SleepStudyDataset objects
@@ -67,27 +68,46 @@ class StudyLoader:
         self._load_errors_queue = Queue(maxsize=3)  # We probably want to raise
                                                     # an error if this queue
                                                     # gets to more than ~3!
-        self.thread_lock = Lock()
+        self.process_lock = Lock()
 
-        args = (self._load_queue, self._output_queue, self._load_errors_queue, self.thread_lock)
-        self.pool = []
-        for _ in range(n_threads):
-            p = Thread(target=_load_func, args=args, daemon=True)
+        args = [self._load_queue, self._output_queue, self._load_errors_queue, self.process_lock]
+        self.processes_and_threads = []
+        self.stop_events = []
+        for _ in range(n_load_processes):
+            stop_event = Event()
+            p = Process(target=_load_func, args=args + [stop_event], daemon=True)
             p.start()
-            self.pool.append(p)
+            self.processes_and_threads.append(p)
+            self.stop_events.append(stop_event)
 
-        # Prepare gathering thread
+        # Prepare loaded studies gathering thread
         self._registered_datasets = {}
+        gather_loaded_stop_event = ThreadEvent()
         self.gather_loaded_thread = Thread(target=_gather_loaded,
                                            args=(self._output_queue,
-                                                 self._registered_datasets),
+                                                 self._registered_datasets,
+                                                 gather_loaded_stop_event),
                                            daemon=True)
+        self.stop_events.append(gather_loaded_stop_event)
+        self.processes_and_threads.append(self.gather_loaded_thread)
+        self.gather_loaded_thread.start()
+
+        # Start thread to collect load errors
+        gather_errors_stop_event = ThreadEvent()
         self.gather_errors_thread = Thread(target=_gather_errors,
                                            args=(self._load_errors_queue,
-                                                 self._registered_datasets),
+                                                 self._registered_datasets,
+                                                 gather_errors_stop_event),
                                            daemon=True)
-        self.gather_loaded_thread.start()
+        self.processes_and_threads.append(self.gather_errors_thread)
+        self.stop_events.append(gather_errors_stop_event)
         self.gather_errors_thread.start()
+
+    def stop(self):
+        for stop_event in self.stop_events:
+            stop_event.set()
+        for process_or_thread in self.processes_and_threads:
+            process_or_thread.join()
 
     @property
     def qsize(self):
@@ -128,7 +148,7 @@ class StudyLoader:
         self._load_queue.put((study, dataset_id))
 
     def register_dataset(self, dataset_id, load_put_function, error_put_function):
-        with self.thread_lock:
+        with self.process_lock:
             if dataset_id in self._registered_datasets:
                 raise RuntimeWarning("A dataset of ID {} has already been "
                                      "registered.".format(dataset_id))
@@ -137,5 +157,5 @@ class StudyLoader:
             )
 
     def de_register_dataset(self, dataset_id):
-        with self.thread_lock:
+        with self.process_lock:
             del self._registered_datasets[dataset_id]

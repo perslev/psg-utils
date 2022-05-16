@@ -61,7 +61,7 @@ class LimitationQueue(BaseQueue):
 
         # Setup load thread pool
         self.study_loader = study_loader or StudyLoader(
-            n_threads=n_load_jobs
+            n_load_processes=n_load_jobs
         )
         # Register this dataset to become updated with new loaded studies
         # from the StudyLoader thread.
@@ -134,7 +134,7 @@ class LimitationQueue(BaseQueue):
         Returns:
 
         """
-        with self.study_loader.thread_lock:
+        with self.study_loader.process_lock:
             self._warn_access_limit()
         # Get random SleepStudy ID from the specified dataset
         timeout_s = 30

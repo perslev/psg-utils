@@ -16,6 +16,7 @@ def get_data_queues(datasets,
                     queue_type,
                     max_loaded_per_dataset,
                     num_access_before_reload,
+                    n_load_processes=7,
                     study_loader=None):
     """
     TODO.
@@ -31,13 +32,12 @@ def get_data_queues(datasets,
     queue_type = map_[queue_type.lower()]
     logger.info("Using data queue type: {}".format(queue_type.__name__))
 
-    if queue_type is LimitationQueue:
-        if study_loader is None:
-            logger.info("Creating study loader...")
-            # Get loader for limitation queue(s)
-            max_loaded = (max_loaded_per_dataset or 0) * len(datasets)
-            study_loader = StudyLoader(n_threads=7,
-                                       max_queue_size=max_loaded or None)
+    if queue_type is LimitationQueue and study_loader is None:
+        logger.info("Creating study loader...")
+        # Get loader for limitation queue(s)
+        max_loaded = (max_loaded_per_dataset or 0) * len(datasets)
+        study_loader = StudyLoader(n_load_processes=n_load_processes,
+                                   max_queue_size=max_loaded or None)
     else:
         study_loader = None
 
@@ -70,4 +70,4 @@ def get_data_queues(datasets,
         ))
     if study_loader:
         study_loader.join()
-    return dataset_queues
+    return dataset_queues, study_loader
