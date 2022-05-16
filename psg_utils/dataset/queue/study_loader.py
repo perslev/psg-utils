@@ -1,4 +1,5 @@
 import logging
+import os
 from psg_utils.errors import CouldNotLoadError
 from threading import Thread
 from threading import Event as ThreadEvent
@@ -49,18 +50,36 @@ def _gather_errors(load_errors_queue, registered_datasets, stop_event):
         load_errors_queue.task_done()
 
 
+def get_num_cpus(n_load_processes):
+    """
+    n_load_processes: [None, int] The number of processes to spin up for study loading.
+                                  If None, uses int(os.environ['SLURM_JOB_CPUS_PER_NODE']) if set, otherwise
+                                  multiprocessing.cpu_count() (using all visible CPUs).
+    """
+    if n_load_processes is None:
+        slurm_cpus = os.environ.get('SLURM_JOB_CPUS_PER_NODE')
+        if slurm_cpus:
+            logger.info(f"Environment variable SLURM_JOB_CPUS_PER_NODE={slurm_cpus}")
+            n_load_processes = int(slurm_cpus)
+        else:
+            num_cpus = cpu_count()
+            logger.info(f"multiprocessing.cpu_count() returned N={num_cpus} visible CPUs.")
+            n_load_processes = num_cpus
+    return n_load_processes
+
+
 class StudyLoader:
     """
     Implements a multithreading SleepStudy loading queue
     """
     def __init__(self,
-                 n_load_processes=5,
+                 n_load_processes=None,
                  max_queue_size=50):
         """
-        Initialize a StudyLoader object from a list of SleepStudyDataset objects
-
         Args:
-            TODO
+            n_load_processes: [None, int] The number of processes to spin up for study loading.
+                                          If None, uses int(os.environ['SLURM_JOB_CPUS_PER_NODE']) if set, otherwise
+                                          multiprocessing.cpu_count() (using all visible CPUs).
         """
         # Setup load thread pool
         self.max_queue_size = max_queue_size
@@ -71,10 +90,13 @@ class StudyLoader:
                                                             # gets to more than ~3!
         self.process_lock = Lock()
 
+        # Init loading processes
+        num_cpus = get_num_cpus(n_load_processes)
+        logger.info(f"Creating StudyLoader with N={num_cpus} loading processes...")
         args = [self._load_queue, self._output_queue, self._load_errors_queue, self.process_lock]
         self.processes_and_threads = []
         self.stop_events = []
-        for _ in range(n_load_processes):
+        for _ in range(num_cpus):
             stop_event = Event()
             p = Process(target=_load_func, args=args + [stop_event], daemon=True)
             p.start()
