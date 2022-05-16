@@ -33,7 +33,6 @@ def get_data_queues(datasets,
     logger.info("Using data queue type: {}".format(queue_type.__name__))
 
     if queue_type is LimitationQueue and study_loader is None:
-        logger.info("Creating study loader...")
         # Get loader for limitation queue(s)
         max_loaded = (max_loaded_per_dataset or 0) * len(datasets)
         study_loader = StudyLoader(n_load_processes=n_load_processes,
