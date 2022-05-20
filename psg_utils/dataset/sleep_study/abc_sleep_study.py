@@ -1,5 +1,7 @@
 import logging
 import numpy as np
+import math
+from typing import Tuple, Union
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from psg_utils import Defaults
@@ -66,27 +68,27 @@ class AbstractBaseSleepStudy(ABC):
         raise NotImplemented
 
     @abstractmethod
-    def get_psg_shape(self):
+    def get_psg_shape(self) -> tuple:
         raise NotImplemented
 
     @abstractmethod
-    def get_full_psg(self):
+    def get_full_psg(self) -> np.ndarray:
         raise NotImplemented
 
     @abstractmethod
-    def get_full_hypnogram(self):
+    def get_full_hypnogram(self, on_overlapping: str = "RAISE") -> np.ndarray:
         raise NotImplemented
 
     @abstractmethod
-    def get_all_periods(self):
+    def get_all_periods(self, on_overlapping: str = "RAISE") -> Union[Tuple[np.ndarray, np.ndarray], np.ndarray]:
         raise NotImplemented
 
     @abstractmethod
-    def get_psg_period_at_sec(self, second):
+    def get_psg_period_at_sec(self, second: [int, float]) -> np.ndarray:
         raise NotImplemented
 
     @abstractmethod
-    def get_stage_at_sec(self, second):
+    def get_stage_at_sec(self, second: [int, float]) -> Union[int, np.ndarray]:
         raise NotImplemented
 
     @abstractmethod
@@ -95,7 +97,7 @@ class AbstractBaseSleepStudy(ABC):
 
     @property
     @abstractmethod
-    def sample_rate(self):
+    def sample_rate(self) -> int:
         raise NotImplemented
 
     @property
@@ -105,47 +107,56 @@ class AbstractBaseSleepStudy(ABC):
 
     @property
     @abstractmethod
-    def n_classes(self):
+    def n_classes(self) -> int:
         raise NotImplemented
 
     @property
     @abstractmethod
-    def recording_length_sec(self):
+    def recording_length_sec(self) -> float:
         raise NotImplemented
 
     @abstractmethod
-    def extract_from_psg(self, start, end, channel_inds=None):
+    def extract_from_psg(self, start_second: Union[float, int], end_second: Union[float, int], channel_inds: list = None):
         """
-        Extract PSG data from second 'start' (inclusive) to second 'end'
+        Extract PSG data from second 'start_second' (inclusive) to second 'end_second'
         (exclusive)
 
         Args:
-            start: int, start second to extract from
-            end: int, end second to extract from
+            start_second: int or float, start_second second to extract from
+            end_second: int or flaot, end_second second to extract from
             channel_inds: list, list of channel indices to extract from
 
         Returns:
-            A Pandas DataFrame view or numpy view
+            A numpy view of self.psg
         """
         raise NotImplemented
 
     @property
-    def last_period_start_second(self):
-        """ Returns the second that marks the beginning of the last period """
-        return int(self.recording_length_sec - self.period_length_sec)
+    def last_period_start_sec(self) -> float:
+        """
+        Returns the second that marks the beginning of the last period
+        """
+        reminder = self.recording_length_sec % self.period_length_sec
+        if reminder > 0:
+            return self.recording_length_sec - reminder
+        else:
+            return self.recording_length_sec - self.period_length_sec
 
     @property
-    def n_periods(self):
-        """ Returns the total number of periods (segments/epochs) """
-        return int(self.recording_length_sec / self.period_length_sec)
+    def n_periods(self) -> int:
+        """
+        Returns the number of periods of length self.period_length in the PSG.
+        Note that this include any partial final period of less than self.period_length_sec length.
+        """
+        return int(np.ceil(self.recording_length_sec / self.period_length_sec))
 
     @property
-    def n_channels(self):
+    def n_channels(self) -> int:
         """ Returns the number of channels in the PSG array """
         return len(self.select_channels)
 
     @property
-    def n_sample_channels(self):
+    def n_sample_channels(self) -> int:
         """
         Overwritten in some derived classes that sample channels
         on-access
@@ -172,12 +183,17 @@ class AbstractBaseSleepStudy(ABC):
         return self._hypnogram
 
     @property
-    def data_per_period(self):
+    def data_per_period(self) -> int:
         """
         Computes and returns the data (samples) per period of
-        'period_length_sec' seconds of time (en 'epoch' in sleep research)
+        'period_length' seconds of time (en 'epoch' in sleep research)
         """
-        return int(self.period_length_sec * self.sample_rate)
+        dpp = self.period_length_sec * self.sample_rate
+        if not math.isclose(dpp, int(dpp)):
+            raise ValueError(f"Cannot compute data_per_period with period_length_sec "
+                             f"{self.period_length_sec} and sample_rate {self.sample_rate} as the "
+                             f"result {dpp} cannot be safely cast to an integer value.")
+        return int(dpp)
 
     def raise_err(self, err_obj, err_msg, _from=None):
         """
@@ -191,7 +207,7 @@ class AbstractBaseSleepStudy(ABC):
             raise e
 
     @property
-    def _try_channels(self):
+    def _try_channels(self) -> list:
         """ Returns the select and alternative select channels together """
         if len(self.alternative_select_channels[0]) != 0:
             try_channels = [self.select_channels] + self.alternative_select_channels
@@ -200,7 +216,7 @@ class AbstractBaseSleepStudy(ABC):
         return try_channels
 
     @property
-    def select_channels(self):
+    def select_channels(self) -> list:
         """ See setter method. """
         return self._select_channels or []
 
@@ -228,10 +244,10 @@ class AbstractBaseSleepStudy(ABC):
         channels = channels or []
         self._select_channels = channels
         if self.loaded:
-            self.reload(warning=True)
+            self.reload(warning=True, allow_missing_channels=False)
 
     @property
-    def alternative_select_channels(self):
+    def alternative_select_channels(self) -> list:
         """ See setter method """
         return self._alternative_select_channels or [[]]
 
@@ -271,9 +287,9 @@ class AbstractBaseSleepStudy(ABC):
         channels = channels or [[]]
         self._alternative_select_channels = channels
         if self.loaded:
-            self.reload(warning=True)
+            self.reload(warning=True, allow_missing_channels=False)
 
-    def period_idx_to_sec(self, period_idx):
+    def period_idx_to_sec(self, period_idx: int) -> [int, float]:
         """
         Helper method that maps a period_idx (int) to the first second in that
         period.
@@ -289,7 +305,7 @@ class AbstractBaseSleepStudy(ABC):
         self._select_channels = loaded_channels   # OBS must set private
         self._alternative_select_channels = None  # OBS must set private
 
-    def get_period_at_sec(self, second):
+    def get_period_at_sec(self, second: [int, float]) -> Tuple[np.ndarray, Union[int, np.ndarray]]:
         """
         Get a period of {X, y} data starting at 'second' seconds.
 
@@ -301,7 +317,7 @@ class AbstractBaseSleepStudy(ABC):
         y = self.get_stage_at_sec(second)
         return x, y
 
-    def get_period_by_idx(self, period_idx):
+    def get_period_by_idx(self, period_idx: int) -> Tuple[np.ndarray, Union[int, np.ndarray]]:
         """
         Get a period of {X, y} data by index
         Period starting at second 0 is index 0.
@@ -314,7 +330,7 @@ class AbstractBaseSleepStudy(ABC):
         return self.get_period_at_sec(period_start_sec)
 
     @abstractmethod
-    def get_periods_by_idx(self, start_idx, end_idx):
+    def get_periods_by_idx(self, start_idx: int, end_idx: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         Get a range of period of {X, y} data by indices
         Period starting at second 0 is index 0.
@@ -324,20 +340,19 @@ class AbstractBaseSleepStudy(ABC):
             end_idx   (int): Index of last period to return (inclusive)
 
         Returns:
-            X: A list of ndarrays each of shape
-               [self.data_per_period, self.n_channels]
-            y: A list of ndarrays each of shape [1]
+            X: ndarray of shape [N periods, self.data_per_period, C]
+            y: ndarray of shape [N periods, 1]
         """
         raise NotImplemented
 
-    def get_stage_by_idx(self, period_idx):
+    def get_stage_by_idx(self, period_idx: int) -> Union[np.ndarray, int]:
         """
         Get the hypnogram stage at period index 'period_idx'.
 
         Returns:
             y: An ndarray of shape [1]
         """
-        period_start_sec = period_idx * self.period_length_sec
+        period_start_sec = self.period_idx_to_sec(period_idx)
         return self.get_stage_at_sec(period_start_sec)
 
     def to_batch_generator(self, batch_size, overlapping=False):

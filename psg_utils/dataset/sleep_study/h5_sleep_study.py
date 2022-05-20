@@ -369,20 +369,20 @@ class H5SleepStudy(AbstractBaseSleepStudy):
                                                      type(channel_selector)))
         self._access_time_random_channel_selector = channel_selector
 
-    def extract_from_psg(self, start, end, channel_inds=None):
+    def extract_from_psg(self, start_second, end_second, channel_inds=None):
         """
-        Extract PSG data from second 'start' (inclusive) to second 'end'
+        Extract PSG data from second 'start_second' (inclusive) to second 'end_second'
         (exclusive)
 
         Args:
-            start: int, start second to extract from
-            end: int, end second to extract from
+            start: int, start_second second to extract from
+            end: int, end_second second to extract from
             channel_inds: list, list of channel indices to extract from
 
         Returns:
             X: ndarray of shape [N periods, data_per_period, C]
         """
-        start_idx, end_idx = self._second_to_idx(start), self._second_to_idx(end)
+        start_idx, end_idx = self._second_to_idx(start_second), self._second_to_idx(end_second)
         return self.get_periods_by_idx(start_idx, end_idx)[0]  # TODO, reads labels for no reason
 
     def to_batch_generator(self, batch_size, overlapping=False):

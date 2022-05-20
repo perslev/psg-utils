@@ -5,9 +5,11 @@ Implements the SleepStudyBase class which represents a sleep study (PSG)
 import logging
 import os
 import numpy as np
+from typing import Tuple, Union
 from psg_utils import Defaults
 from psg_utils.dataset.utils import find_psg_and_hyp
 from psg_utils.dataset.sleep_study.abc_sleep_study import AbstractBaseSleepStudy
+from psg_utils.time_utils import TimeUnit
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +77,7 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
         self.header_file_path = header  # OBS: Most often None
 
     @property
-    def identifier(self):
+    def identifier(self) -> str:
         """
         Returns an ID, which is simply the name of the directory storing
         the data
@@ -83,25 +85,31 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
         return os.path.split(self.subject_dir)[-1]
 
     @property
-    def n_classes(self):
+    def n_classes(self) -> int:
         """ Returns the number of classes represented in the hypnogram """
         return self.hypnogram.n_classes
 
     @property
-    def recording_length_sec(self):
+    def recording_length_sec(self) -> float:
         """ Returns the total length (in seconds) of the PSG recording """
         return self.get_psg_shape()[0] / self.sample_rate
 
-    def get_full_hypnogram(self):
+    def get_full_hypnogram(self, on_overlapping: str = "RAISE") -> np.ndarray:
         """
         Returns the full (dense) hypnogram
+
+        Args:
+            on_overlapping: str, One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a descrete
+                                 period of length self.period_length overlaps 2 or more different classes in the
+                                 original hypnogram. See SparseHypnogram.get_period_at_time for details.
 
         Returns:
             An ndarray of shape [self.n_periods, 1] of class labels
         """
-        return self.hypnogram.to_dense()["sleep_stage"].to_numpy().reshape(-1, 1)
+        dense_hypnogram = self.hypnogram.to_dense(on_overlapping)
+        return dense_hypnogram["sleep_stage"].to_numpy().reshape(-1, 1)
 
-    def get_periods_by_idx(self, start_idx, end_idx):
+    def get_periods_by_idx(self, start_idx: int, end_idx: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         Get a range of period of {X, y} data by indices
         Period starting at second 0 is index 0.
@@ -126,7 +134,7 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
             y[i] = y_period
         return x, y
 
-    def get_psg_period_at_sec(self, second):
+    def get_psg_period_at_sec(self, second: [int, float]) -> np.ndarray:
         """
         Get PSG period starting at second 'second'.
 
@@ -137,10 +145,10 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
             raise ValueError("Invalid second of {}, not divisible by period "
                              "length of {} "
                              "seconds".format(second, self.period_length_sec))
-        return self.extract_from_psg(start=second,
-                                     end=second+self.period_length_sec)
+        return self.extract_from_psg(start_second=second,
+                                     end_second=second+self.period_length_sec)
 
-    def get_stage_at_sec(self, second):
+    def get_stage_at_sec(self, second: [int, float]) -> Union[int, np.ndarray]:
         """
         TODO
 
@@ -150,22 +158,27 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
         Returns:
 
         """
-        return self.hypnogram.get_stage_at_sec(second)
+        return self.hypnogram.get_stage_at_time(second, TimeUnit.SECOND)
 
-    def get_all_periods(self):
+    def get_all_periods(self, on_overlapping: str = "RAISE") -> Union[Tuple[np.ndarray, np.ndarray], np.ndarray]:
         """
         Returns the full (dense) data of the SleepStudy
+
+        Args:
+        on_overlapping: str, One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a descrete
+                             period of length self.period_length overlaps 2 or more different classes in the
+                             original hypnogram. See SparseHypnogram.get_period_at_time for details.
 
         Returns:
             X: An ndarray of shape [self.n_periods,
                                     self.data_per_period,
                                     self.n_channels]
-            y: An ndarray of shape [self.n_periods, 1]
+            y: An ndarray of shape [self.n_periods, 1] (if self.no_hypnogram == False)
         """
-        X = self.get_full_psg().reshape(-1, self.data_per_period, self.n_channels)
+        X = self.get_full_psg().reshape(shape=[-1, self.data_per_period, self.n_channels])
         if self.no_hypnogram:
             return X
-        y = self.get_full_hypnogram()
+        y = self.get_full_hypnogram(on_overlapping)
         if len(X) != len(y):
             err_msg = ("Length of PSG array does not match length dense "
                        "hypnogram array ({} != {}). If hypnogram "

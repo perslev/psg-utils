@@ -4,6 +4,7 @@ Implements the SleepStudy class which represents a sleep study (PSG)
 
 import logging
 import numpy as np
+from typing import Union, Tuple
 from psg_utils import errors
 from psg_utils.io.channels import RandomChannelSelector
 from psg_utils.io.high_level_file_loaders import load_psg, load_hypnogram
@@ -118,7 +119,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
                                                              self.identifier)
 
     @property
-    def class_to_period_dict(self):
+    def class_to_period_dict(self) -> dict:
         """
         Returns the class_to_period_dict, which maps a class integer
         (such as 0) to an array of period indices that correspond to PSG
@@ -128,7 +129,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         return self._class_to_period_dict
 
     @property
-    def load_time_random_channel_selector(self):
+    def load_time_random_channel_selector(self) -> Union[RandomChannelSelector, None]:
         """
         TODO
 
@@ -160,12 +161,12 @@ class SleepStudy(SubjectDirSleepStudyBase):
         self._load_time_random_channel_selector = channel_selector
 
     @property
-    def sample_rate(self):
+    def sample_rate(self) -> int:
         """ Returns the currently set sample rate """
         return self._sample_rate
 
     @sample_rate.setter
-    def sample_rate(self, sample_rate):
+    def sample_rate(self, sample_rate: int):
         """
         Set a new sample rate
         Is considered at load-time
@@ -180,7 +181,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
             self.reload(warning=True)
 
     @property
-    def org_sample_rate(self):
+    def org_sample_rate(self) -> int:
         """
         Returns the original sample rate
         """
@@ -192,12 +193,12 @@ class SleepStudy(SubjectDirSleepStudyBase):
         return self._date
 
     @property
-    def scaler(self):
+    def scaler(self) -> Union[str, None]:
         """ Returns the scaler type (string), see setter method """
         return self._scaler
 
     @scaler.setter
-    def scaler(self, scaler):
+    def scaler(self, scaler: str):
         """
         Sets a scaler type.
         Is considered at load-time
@@ -218,14 +219,14 @@ class SleepStudy(SubjectDirSleepStudyBase):
         return self._scaler_obj
 
     @property
-    def strip_func(self):
+    def strip_func(self) -> Union[None, Tuple[str, dict]]:
         """
         See setter method
         strip_func - when set - is a 2-tuple (strip_func_name, kwargs)
         """
         return self._strip_func
 
-    def set_strip_func(self, strip_func_str, **kwargs):
+    def set_strip_func(self, strip_func_str: str, **kwargs):
         """
         Sets a strip function. Strip functions are applied to the PSG/HYP pair
         at load time and may deal with minor differences between the length
@@ -248,22 +249,22 @@ class SleepStudy(SubjectDirSleepStudyBase):
             self.reload(warning=True)
 
     @property
-    def quality_control_func(self):
+    def quality_control_func(self) -> Union[None, Tuple[str, dict]]:
         """ See setter method """
         return self._quality_control_func
 
-    def set_quality_control_func(self, quality_control_func, **kwargs):
+    def set_quality_control_func(self, quality_control_func: str, **kwargs):
         """
         Sets a quality control function which is applied to all segments
-        of a PSG (as determined by self.period_length_sec) and may alter the
+        of a PSG (as determined by self.period_length) and may alter the
         values of said segments.
 
         Applies at load-time, forces a reload if self.loaded == True.
 
         Args:
-            qc_func:  A string naming a quality control function in:
-                      psg_utils.preprocessing.quality_control_funcs
-            **kwargs: Parameters passed to the quality control func at load
+            quality_control_func:  A string naming a quality control function in:
+                                   psg_utils.preprocessing.quality_control_funcs
+            **kwargs:              Parameters passed to the quality control func at load
         """
         if quality_control_func not in quality_control_funcs.__dict__:
             self.raise_err(ValueError, "Invalid quality control function "
@@ -273,7 +274,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
             self.reload(warning=True)
 
     @property
-    def loaded(self):
+    def loaded(self) -> bool:
         """
         Returns whether the SleepStudy data is currently loaded or not
         """
@@ -387,7 +388,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         self._psg = self._psg.astype(np.float32)
         self.times_loaded += 1
 
-    def _set_header_fields(self, header):
+    def _set_header_fields(self, header: dict):
         """
         TODO
 
@@ -428,7 +429,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
             print("Reloading SleepStudy '{}'".format(self.identifier))
         self.load(reload=True, allow_missing_channels=allow_missing_channels)
 
-    def get_psg_shape(self):
+    def get_psg_shape(self) -> tuple:
         """
         TODO
 
@@ -437,7 +438,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         """
         return self.psg.shape
 
-    def get_class_counts(self, as_dict=False):
+    def get_class_counts(self, as_dict=False) -> Union[dict, np.ndarray]:
         """
         Computes the class counts for the loaded hypnogram.
 
@@ -457,10 +458,10 @@ class SleepStudy(SubjectDirSleepStudyBase):
         else:
             return counts
 
-    def get_class_indicies(self, class_int):
+    def get_class_indicies(self, class_int: int) -> np.ndarray:
         return self.class_to_period_dict[class_int]
 
-    def get_full_psg(self):
+    def get_full_psg(self) -> np.ndarray:
         """
         TODO
 
@@ -469,27 +470,30 @@ class SleepStudy(SubjectDirSleepStudyBase):
         """
         return self.psg
 
-    def extract_from_psg(self, start, end, channel_inds=None):
+    def extract_from_psg(self,
+                         start_second: Union[int, float],
+                         end_second: Union[int, float],
+                         channel_inds: list = None) -> np.ndarray:
         """
         Extract PSG data from second 'start' (inclusive) to second 'end'
         (exclusive)
 
         Args:
-            start: int, start second to extract from
-            end: int, end second to extract from
+            start_second: int or float, start second to extract from
+            end_second: int or float, end second to extract from
             channel_inds: list, list of channel indices to extract from
 
         Returns:
-            A Pandas DataFrame view or numpy view
+            A numpy view of self.psg
         """
-        if start > self.last_period_start_second:
+        if start_second > self.last_period_start_sec:
             raise ValueError("Cannot extract a full period starting from second"
                              " {}. Last full period of {} seconds starts at "
-                             "second {}.".format(start, self.period_length_sec,
-                                                 self.last_period_start_second))
+                             "second {}.".format(start_second, self.period_length_sec,
+                                                 self.last_period_start_sec))
         sr = self.sample_rate
-        first_row = int(start * sr)
-        last_row = int(end * sr)
+        first_row = int(start_second * sr)
+        last_row = int(end_second * sr)
         rows = self.psg[first_row:last_row]
         if channel_inds is not None:
             return rows[:, channel_inds]
