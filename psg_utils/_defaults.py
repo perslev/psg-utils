@@ -15,7 +15,6 @@ class _Defaults:
     NON_REM_STAGE_3 = ["N3", 3]
     REM = ["REM", 4]
     UNKNOWN = ["UNKNOWN", 5]
-    OUT_OF_BOUNDS = ["OUT_OF_BOUNDS", 6]
 
     # Visualization defaults
     STAGE_COLORS = ["darkblue", "darkred",

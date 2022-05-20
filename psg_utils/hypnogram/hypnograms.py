@@ -63,11 +63,11 @@ class SparseHypnogram(object):
     sparse representation.
     """
     def __init__(self,
-                 init_times: List[Union[int, float]],
-                 durations: List[Union[int, float]],
-                 sleep_stages: List[int],
+                 init_times: Union[List[Union[int, float]], np.ndarray],
+                 durations: Union[List[Union[int, float]], np.ndarray],
+                 sleep_stages: Union[List[int], np.ndarray],
                  period_length: [int, float],
-                 org_time_unit: TimeUnit = TimeUnit.SECOND,
+                 org_time_unit: TimeUnit,
                  internal_time_unit: TimeUnit = TimeUnit.MILLISECOND):
 
         if not (len(init_times) == len(durations) == len(sleep_stages)):
@@ -95,13 +95,13 @@ class SparseHypnogram(object):
                              "contains values in seconds such as 2.5, set org_time_unit=TimeUnit.SECOND and "
                              "internal_time_unit=TimeUnit.MILLISECOND to represent the 2.5 seconds as integer value "
                              "2500 internally.") from e
-        init_times, durations, sleep_stages = map(list, (init_times, durations, sleep_stages))
 
         if init_times[0] != 0:
             # Insert leading UNKNOWN class if hypnogram does not start at
             # second 0
             init_times.insert(0, 0)
             durations.insert(0, init_times[1])
+            sleep_stages = list(sleep_stages)
             sleep_stages.insert(0, Defaults.UNKNOWN[1])
 
         self.inits = np.array(init_times, dtype=np.int64)
@@ -140,6 +140,11 @@ class SparseHypnogram(object):
         return len(self.classes)
 
     @property
+    def classes(self) -> np.ndarray:
+        """ Returns the unique classes/stages of the hypnogram """
+        return np.unique(self.stages)
+
+    @property
     def n_periods(self) -> int:
         """
         Returns the number of periods of length self.period_length in the hypnogram.
@@ -148,9 +153,11 @@ class SparseHypnogram(object):
         return int(np.ceil(self.total_duration / self.period_length))
 
     @property
-    def classes(self) -> np.ndarray:
-        """ Returns the unique classes/stages of the hypnogram """
-        return np.unique(self.stages)
+    def period_length_sec(self) -> float:
+        """
+        Returns the period length in seconds as a float
+        """
+        return convert_time(self.period_length, self.time_unit, TimeUnit.SECOND)
 
     @property
     def end_time(self) -> int:
@@ -158,13 +165,27 @@ class SparseHypnogram(object):
         return self.inits[-1] + self.durations[-1]
 
     @property
+    def end_time_sec(self) -> float:
+        """
+        Hypnogram end time in seconds as a float.
+        """
+        return convert_time(self.end_time, self.time_unit, TimeUnit.SECOND)
+
+    @property
     def last_period_start(self) -> int:
-        """ Returns the second at which the last period begins """
+        """ Returns the time point at which the last period begins """
         reminder = self.end_time % self.period_length
         if reminder > 0:
             return self.end_time - reminder
         else:
             return self.end_time - self.period_length
+
+    @property
+    def last_period_start_sec(self) -> float:
+        """
+        Returns the time point at which the last period begins in seconds as a float.
+        """
+        return convert_time(self.last_period_start, self.time_unit, TimeUnit.SECOND)
 
     @property
     def total_duration(self) -> int:
@@ -174,6 +195,13 @@ class SparseHypnogram(object):
         case)
         """
         return int(np.sum(self.durations))
+
+    @property
+    def total_duration_sec(self) -> float:
+        """
+        Returns the total duration in TimeUnit.SECOND as a float.
+        """
+        return convert_time(self.total_duration, self.time_unit, TimeUnit.SECOND)
 
     def _extend_end_time(self, new_end_time: int):
         length_diff = new_end_time - self.end_time
