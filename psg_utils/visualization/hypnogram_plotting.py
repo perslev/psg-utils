@@ -109,8 +109,12 @@ def plot_hypnogram(hyp_array,
             from sklearn.metrics import f1_score
             labels = [str_to_int_map[w] for w in reversed(order)]
             mask = np.isin(true_hyp_array.flatten(), np.array(labels).flatten())
-            f1s = f1_score(true_hyp_array[mask], hyp_array[mask], labels=labels, average=None, zero_division=1)
-            f1s = [round(l, 2) for l in (list(f1s) + [np.mean(f1s)])]
+            if not np.sum(mask) == 0:
+                f1s = f1_score(true_hyp_array[mask], hyp_array[mask], labels=labels, average=None, zero_division=1)
+                f1s = [round(l, 2) for l in (list(f1s) + [np.mean(f1s)])]
+            else:
+                print('check')
+                f1s = ['--'] * (len(labels) + 1)
             f1_labels = list(reversed(order)) + ["Mean"]
 
             # Plot title
@@ -136,7 +140,7 @@ def plot_hypnogram(hyp_array,
                 fig.text(
                     x=0.9475,
                     y=0.58-(0.05*i),
-                    s="{:.2f}".format(value),
+                    s="{:.2f}".format(value) if not isinstance(value, str) else value,
                     ha="left",
                     va="top",
                     fontdict={"alpha": 1, "size": 14}
