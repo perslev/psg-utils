@@ -8,6 +8,16 @@ class TimeUnit(enum.Enum):
     MICROSECOND = 10**6
     NANOSECOND = 10**9
 
+    @classmethod
+    def from_string(cls, time_string: str):
+        time_string = time_string.upper().rstrip('S')
+        try:
+            return getattr(cls, time_string)
+        except AttributeError as e:
+            raise AttributeError(f"Invalid time string '{time_string}' passed. "
+                                 f"Valid options are SECOND(S), MILLISECOND(S), MICROSECOND(S), NANOSECOND(S) "
+                                 f"in upper/lower case letters.") from e
+
 
 def convert_time(time: [float, int], from_unit: TimeUnit, to_unit: TimeUnit, cast_to_int=False):
     factor = to_unit.value / from_unit.value
