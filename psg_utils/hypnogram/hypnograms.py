@@ -9,7 +9,7 @@ import pandas as pd
 from collections import defaultdict
 from typing import List, Union
 from psg_utils import Defaults
-from psg_utils.time_utils import TimeUnit, convert_time
+from psg_utils.time_utils import TimeUnit, convert_time, standardize_time_input
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +33,13 @@ class DenseHypnogram(pd.DataFrame):
     def __init__(self,
                  dense_init_times: Union[List[int], np.ndarray],
                  dense_stages: Union[List[int], np.ndarray],
-                 org_time_unit: TimeUnit,
+                 time_unit: TimeUnit,
                  internal_time_unit: TimeUnit = TimeUnit.SECOND):
         """
         TODO
         """
         # Convert times to internal units
-        dense_init_times = list(map(lambda t: convert_time(t, org_time_unit, internal_time_unit), dense_init_times))
+        dense_init_times = list(map(lambda t: convert_time(t, time_unit, internal_time_unit), dense_init_times))
         diffs = np.diff(dense_init_times)
         if np.any(diffs != diffs[0]):
             raise ValueError("Cannot initialize a DenseHypnogram with 'dense_init_times' "
@@ -67,32 +67,30 @@ class SparseHypnogram(object):
                  durations: Union[List[Union[int, float]], np.ndarray],
                  sleep_stages: Union[List[int], np.ndarray],
                  period_length: [int, float],
-                 org_time_unit: TimeUnit,
-                 internal_time_unit: TimeUnit = TimeUnit.MILLISECOND):
+                 time_unit: Union[TimeUnit, str] = TimeUnit.SECOND,
+                 internal_time_unit: [TimeUnit, str] = TimeUnit.MILLISECOND):
 
         if not (len(init_times) == len(durations) == len(sleep_stages)):
-            raise ValueError("Lists 'init_times' and 'sleep_stages' must be of equal length.")
+            raise ValueError("Lists 'inits' and 'sleep_stages' must be of equal length.")
 
         # Convert times to internal (integer) representation
-        self.time_unit = internal_time_unit
+        self.time_unit = standardize_time_input(internal_time_unit)
         try:
-            self.period_length = convert_time(period_length, org_time_unit, self.time_unit, cast_to_int=True)
+            self.period_length = convert_time(period_length, time_unit, self.time_unit, cast_to_int=True)
         except ValueError as e:
-            raise ValueError(f"Parameter 'period_length' should be a whole number/integer, got {self.period_length} "
-                             f"({self.time_unit}). Consider setting different org and/or internal time units "
-                             f"(e.g., if you want to use a period_length of 2.5 milliseconds "
-                             "seconds, set period_length=2.5, org_time_unit=TimeUnit.MILLISECONDS and "
+            raise ValueError(f"Parameter 'period_length' should be a whole number/integer. "
+                             f"Consider setting different org and/or internal time units "
+                             f"(e.g., if you want to use a period_length of 2.5 milliseconds, "
+                             f"set period_length=2.5, time_unit=TimeUnit.MILLISECONDS and "
                              "internal_time_unit=TimeUnit.MICROSECONDS.") from e
-        else:
-            self.period_length = int(self.period_length)
         try:
-            init_times = list(map(lambda t: convert_time(t, org_time_unit, self.time_unit, cast_to_int=True), init_times))
-            durations = list(map(lambda t: convert_time(t, org_time_unit, self.time_unit, cast_to_int=True), durations))
+            init_times = list(map(lambda t: convert_time(t, time_unit, self.time_unit, cast_to_int=True), init_times))
+            durations = list(map(lambda t: convert_time(t, time_unit, self.time_unit, cast_to_int=True), durations))
         except ValueError as e:
-            raise ValueError("One of parameters 'init_times' or 'durations' contains values which cannot be safely "
-                             "represented as integers after time conversion. Consider specifying the 'org_time_unit' "
+            raise ValueError("One of parameters 'inits' or 'durations' contains values which cannot be safely "
+                             "represented as integers after time conversion. Consider specifying the 'time_unit' "
                              "and/or 'internal_time_unit' arguments to SparseHypnogram. E.g., if your hypnogram file "
-                             "contains values in seconds such as 2.5, set org_time_unit=TimeUnit.SECOND and "
+                             "contains values in seconds such as 2.5, set time_unit=TimeUnit.SECOND and "
                              "internal_time_unit=TimeUnit.MILLISECOND to represent the 2.5 seconds as integer value "
                              "2500 internally.") from e
 
@@ -388,5 +386,5 @@ class SparseHypnogram(object):
         stages = [self.get_period_at_time(time, self.time_unit, on_overlapping) for time in period_start_points]
         return DenseHypnogram(dense_init_times=period_start_points,
                               dense_stages=stages,
-                              org_time_unit=self.time_unit,
+                              time_unit=self.time_unit,
                               internal_time_unit=dense_time_unit)

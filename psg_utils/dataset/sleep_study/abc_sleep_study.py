@@ -1,11 +1,13 @@
 import logging
 import numpy as np
 import math
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from psg_utils import Defaults
+from psg_utils.time_utils import TimeUnit, convert_time, standardize_time_input
 from psg_utils.utils import ensure_list_or_tuple
+from datetime import datetime
 
 
 logger = logging.getLogger(__name__)
@@ -16,20 +18,34 @@ class AbstractBaseSleepStudy(ABC):
     TODO
     """
     def __init__(self,
-                 annotation_dict,
-                 period_length_sec,
-                 no_hypnogram):
+                 annotation_dict: dict,
+                 no_hypnogram: bool,
+                 period_length: [int, float],
+                 time_unit: Union[TimeUnit, str],
+                 internal_time_unit: Union[TimeUnit, str]):
         """
-        TODO
-
         Args:
-            annotation_dict:
-            period_length_sec:
-            no_hypnogram:
+           no_hypnogram       (bool)       Initialize without ground truth data.
+           annotation_dict    (dict)       A dictionary mapping from labels in the hyp_file_path file to integers
+           period_length      (int/float)  Sleep 'epoch' (segment/period) length in units 'time_unit' (see below)
+           time_unit          (TimeUnit)   TimeUnit object specifying the unit of time of 'period_length'
+           internal_time_unit (TimeUnit)   TimeUnit object specifying the unit of time to use internally for storing
+                                             times. Affects the values returned by methods or attributes such as
+                                             self.period_length.
         """
         self.annotation_dict = annotation_dict
         self.no_hypnogram = no_hypnogram
-        self.period_length_sec = period_length_sec or Defaults.get_default_period_length()
+
+        # Convert period_length input to an internal integer representation in units 'internal_time_unit' (TimeUnit)
+        self._time_unit = standardize_time_input(internal_time_unit)
+        try:
+            self._period_length = convert_time(period_length, time_unit, internal_time_unit, cast_to_int=True)
+        except ValueError as e:
+            raise ValueError(f"Parameter 'period_length' should be a whole number/integer. "
+                             f"Consider setting different org and/or internal time units "
+                             f"(e.g., if you want to use a period_length of 2.5 milliseconds, "
+                             f"set period_length=2.5, org_time_unit=TimeUnit.MILLISECONDS and "
+                             "internal_time_unit=TimeUnit.MICROSECONDS.") from e
 
         # Hidden attributes controlled in property functions to limit setting
         # of these values to the load() function
@@ -40,115 +56,144 @@ class AbstractBaseSleepStudy(ABC):
         self._alternative_select_channels = None
 
     @abstractmethod
-    def identifier(self):
-        raise NotImplemented
-
-    @abstractmethod
     def __str__(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     @abstractmethod
     def __repr__(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     @abstractmethod
-    def loaded(self):
-        raise NotImplemented
+    def identifier(self) -> str:
+        raise NotImplementedError
 
     @abstractmethod
-    def reload(self, warning, allow_missing_channels):
-        raise NotImplemented
+    def loaded(self) -> bool:
+        raise NotImplementedError
 
     @abstractmethod
-    def load(self, allow_missing_channels):
-        raise NotImplemented
+    def reload(self, warning, allow_missing_channels) -> None:
+        raise NotImplementedError
 
     @abstractmethod
-    def unload(self):
-        raise NotImplemented
+    def load(self, allow_missing_channels) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def unload(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_class_indices(self, class_int: int) -> np.ndarray:
+        raise NotImplementedError
 
     @abstractmethod
     def get_psg_shape(self) -> tuple:
-        raise NotImplemented
+        raise NotImplementedError
 
     @abstractmethod
-    def get_full_psg(self) -> np.ndarray:
-        raise NotImplemented
+    def get_psg_as_array(self):
+        """
+        Returns the PSG stored in self._psg as a single, flat ndarray of shape [-1, n_channels]
+        """
+        raise NotImplementedError
 
     @abstractmethod
-    def get_full_hypnogram(self, on_overlapping: str = "RAISE") -> np.ndarray:
-        raise NotImplemented
+    def get_psg_periods_by_idx(self, start_idx: int, n_periods: int = 1, channel_indices: list = None) -> np.ndarray:
+        """
+        Returns periods from the PSG in shape [n_periods, self.data_per_period, n_channels].
+
+        Args:
+            start_idx (int):        Index of first period to return
+            n_periods (int):        The number of periods to return
+            channel_indices (list): Optional list of channel indices to extract from PSG. Extracts all with None.
+
+        Returns:
+            psg: ndarray of shape [n_periods, self.data_per_period, n_channels]
+        """
+        raise NotImplementedError
 
     @abstractmethod
-    def get_all_periods(self, on_overlapping: str = "RAISE") -> Union[Tuple[np.ndarray, np.ndarray], np.ndarray]:
-        raise NotImplemented
+    def get_hyp_periods_by_idx(self, start_idx: int, n_periods: int = 1, on_overlapping: str = "RAISE") -> np.ndarray:
+        """
+        Returns periods from the hypnogram in shape [n_periods].
 
-    @abstractmethod
-    def get_psg_period_at_sec(self, second: [int, float]) -> np.ndarray:
-        raise NotImplemented
+        Args:
+            start_idx (int): Index of first period to return
+            n_periods (int): The number of periods to return
+            on_overlapping: str, One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
+                            period of length self.period_length overlaps 2 or more different classes in the
+                            original hypnogram. See SparseHypnogram.get_period_at_time for details.
 
-    @abstractmethod
-    def get_stage_at_sec(self, second: [int, float]) -> Union[int, np.ndarray]:
-        raise NotImplemented
-
-    @abstractmethod
-    def get_class_indicies(self, class_int):
-        raise NotImplemented
+        Returns:
+            hyp: ndarray of shape [n_periods]
+        """
+        raise NotImplementedError
 
     @property
     @abstractmethod
     def sample_rate(self) -> int:
-        raise NotImplemented
+        """ Returns the sample rate in Hertz. Must be a whole number. """
+        raise NotImplementedError
 
     @property
     @abstractmethod
-    def date(self):
-        raise NotImplemented
+    def date(self) -> Union[None, datetime]:
+        raise NotImplementedError
 
     @property
     @abstractmethod
     def n_classes(self) -> int:
-        raise NotImplemented
+        raise NotImplementedError
 
     @property
-    @abstractmethod
-    def recording_length_sec(self) -> float:
-        raise NotImplemented
-
-    @abstractmethod
-    def extract_from_psg(self, start_second: Union[float, int], end_second: Union[float, int], channel_inds: list = None):
-        """
-        Extract PSG data from second 'start_second' (inclusive) to second 'end_second'
-        (exclusive)
-
-        Args:
-            start_second: int or float, start_second second to extract from
-            end_second: int or flaot, end_second second to extract from
-            channel_inds: list, list of channel indices to extract from
-
-        Returns:
-            A numpy view of self.psg
-        """
-        raise NotImplemented
+    def time_unit(self) -> TimeUnit:
+        """ Returns the internal time unit """
+        return self._time_unit
 
     @property
-    def last_period_start_sec(self) -> float:
-        """
-        Returns the second that marks the beginning of the last period
-        """
-        reminder = self.recording_length_sec % self.period_length_sec
+    def period_length(self) -> int:
+        """ Returns the period length in time unit self.time_units as an integer """
+        return self._period_length
+
+    def get_period_length_in(self, time_unit: Union[TimeUnit, str]) -> float:
+        """ Returns self.period_length in time unit 'time_unit' """
+        return convert_time(self.period_length, self.time_unit, time_unit)
+
+    @property
+    def recording_length(self) -> int:
+        """ Returns the recording length in time unit self.time_units """
+        return convert_time(self.get_psg_shape()[0] / self.sample_rate,
+                            from_unit=TimeUnit.SECOND,
+                            to_unit=self.time_unit,
+                            cast_to_int=True)
+
+    def get_recording_length_in(self, time_unit: Union[TimeUnit, str]) -> float:
+        """ Returns the recording length in units 'time_unit' """
+        return convert_time(self.recording_length, self.time_unit, time_unit)
+
+    @property
+    def last_period_start(self) -> int:
+        """ Returns the recordings last period start time in unit self.time_unit """
+        reminder = self.recording_length % self.period_length
         if reminder > 0:
-            return self.recording_length_sec - reminder
+            return self.recording_length - reminder
         else:
-            return self.recording_length_sec - self.period_length_sec
+            return self.recording_length - self.period_length
+
+    def get_last_period_start_in(self, time_unit: Union[TimeUnit, str]) -> float:
+        """
+        Returns the time that marks the beginning of the last period in units 'time_unit'
+        """
+        return convert_time(self.last_period_start, self.time_unit, time_unit)
 
     @property
     def n_periods(self) -> int:
         """
         Returns the number of periods of length self.period_length in the PSG.
-        Note that this include any partial final period of less than self.period_length_sec length.
+        Note that this include any partial final period of less than self.period_length length.
         """
-        return int(np.ceil(self.recording_length_sec / self.period_length_sec))
+        return int(np.ceil(self.recording_length / self.period_length))
 
     @property
     def n_channels(self) -> int:
@@ -158,10 +203,223 @@ class AbstractBaseSleepStudy(ABC):
     @property
     def n_sample_channels(self) -> int:
         """
-        Overwritten in some derived classes that sample channels
-        on-access
+        Overwritten in some derived classes that sample channels on-access
         """
         return self.n_channels
+
+    def period_idx_to_time(self, period_idx: int) -> [int, float]:
+        """
+        Helper method that maps a period_idx (int) to the first time point in that period.
+        """
+        return period_idx * self.period_length
+
+    def period_time_to_idx(self, time: [int, float], time_unit: Union[TimeUnit, str]):
+        """
+        Helper method that maps a period start time in units 'time_unit' to its period index.
+        """
+        time = self.to_internal_period_time(time, time_unit)
+        return int(time / self.period_length)
+
+    def _assert_similar_lengths(self, psg_arr, hyp_arr):
+        """
+        Helper method to check if the number of periods in a PSG array matches that of a HYP array
+        Raises ValueError if len(psg_arr) != len(hyp_arr)
+        """
+        if len(psg_arr) != len(hyp_arr):
+            err_msg = ("Length of PSG array does not match length dense "
+                       "hypnogram array ({} != {}). If hypnogram "
+                       "is longer, consider if a trailing or leading "
+                       "sleep stage should be removed. (you may use "
+                       "SleepStudyDataset.set_strip_func())".format(len(psg_arr),
+                                                                    len(hyp_arr)))
+            self.raise_err(ValueError, err_msg)
+
+    def get_periods_by_idx(self,
+                           start_idx: int,
+                           n_periods: int = 1,
+                           channel_indices: list = None,
+                           on_overlapping: str = "RAISE") -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """
+        Get a range of period of {X, y} data by indices (self.no_hypnogram is False) else {X}
+        Period starting at second 0 is index 0.
+
+        Args:
+            start_idx       (int):  Index of first period to return
+            n_periods       (int):  The number of periods to return
+            channel_indices (list): Optional list of channel indices to extract from PSG. Extracts all with None.
+            on_overlapping: (str):  One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
+                                    period of length self.period_length overlaps 2 or more different classes in the
+                                    original hypnogram. See SparseHypnogram.get_period_at_time for details.
+
+        Returns:
+            psg: ndarray of shape [n_periods, self.data_per_period, C]
+            hyp: ndarray of shape [n_periods, 1] IF self.no_hypnogram is False
+        """
+        psg = self.get_psg_periods_by_idx(start_idx, n_periods, channel_indices)
+        if self.no_hypnogram:
+            return psg
+        else:
+            hyp = self.get_hyp_periods_by_idx(start_idx, n_periods, on_overlapping)
+            self._assert_similar_lengths(psg, hyp)
+            return psg, hyp
+
+    def to_internal_period_time(self, time: [int, float], time_unit: Union[TimeUnit, str]) -> int:
+        """
+        Helper method that:
+
+        (1) Converts a time point 'time' in units 'time_unit' to the internal time units self.time_unit
+        (2) Checks if the time point aligns with the beginning of a period.
+        (3) That 'time' is within bounds of the study (0 <= time < self.recording_length)
+
+        Raises ValueError if the time point cannot be converted to internal integer representation,
+        or (2) or (3) are violated.
+
+        Args:
+            time (int, float):           The time point of the beginning of a period.
+            time_unit: (TimeUnit, str):  Time unit for parameter 'time'.
+
+        Returns:
+            internal_time: int, internal time aligning with beginning of a period.
+        """
+        try:
+            internal_time = convert_time(time, time_unit, self.time_unit, cast_to_int=True)
+        except ValueError as e:
+            self.raise_err(ValueError, f"Cannot get PSG/hyp period starting at time {time} ({time_unit}) as the "
+                                       f"time cannot be safely cast to an integer/whole number using the internal time "
+                                       f"unit {self.time_unit}", _from=e)
+        else:
+            if internal_time % self.period_length:
+                self.raise_err(ValueError, f"Invalid time of {internal_time}, not divisible by period "
+                                           f"length of {self.period_length}")
+            if internal_time >= self.recording_length or internal_time < 0:
+                self.raise_err(ValueError, f"Invalid time of {internal_time}, outside range of sleep study "
+                                           f"of {self.recording_length} ({self.time_unit})")
+            return internal_time
+
+    def get_psg_periods_by_time(self,
+                                start_time: [int, float],
+                                time_unit: Union[TimeUnit, str],
+                                channel_indices: list = None,
+                                n_periods: int = 1) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """
+        Equivalent method to self.get_psg_periods_by_idx but working in time units instead of period indices.
+
+        Returns periods from the PSG in shape [n_periods, self.data_per_period, n_channels] starting
+        from a time point 'start_time'. 'start_time' must align exactly with the beginning of a period, otherwise a
+        ValueError is raised.
+
+        Args:
+            start_time (int, float):     The time point of the beginning of a period from which to get periods.
+            time_unit: (TimeUnit, str):  Time unit for parameter 'start_time'.
+            channel_indices (list):      Optional list of channel indices to extract from PSG. Extracts all with None.
+            n_periods  (int):            The number of periods to return
+
+        Returns:
+            psg: ndarray of shape [n_periods, self.data_per_period, C]
+        """
+        start_time = self.to_internal_period_time(start_time, time_unit)
+        start_idx = self.period_time_to_idx(start_time, self.time_unit)
+        return self.get_psg_periods_by_idx(start_idx, n_periods, channel_indices)
+
+    def get_hyp_periods_by_time(self,
+                                start_time: [int, float],
+                                time_unit: Union[TimeUnit, str],
+                                n_periods: int = 1,
+                                on_overlapping: str = "RAISE") -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """
+        Equivalent method to self.get_hyp_periods_by_idx but working in time units instead of period indices.
+
+        Returns periods from the hypnogram in shape [n_periods] starting from a time point 'start_time'.
+        'start_time' must align exactly with the beginning of a period, otherwise a ValueError is raised.
+
+        Args:
+            start_time (int, float):     The time point of the beginning of a period from which to get periods.
+            time_unit: (TimeUnit, str):  Time unit for parameter 'start_time'.
+            n_periods (int):             The number of periods to return
+            on_overlapping: (str):       One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
+                                         period of length self.period_length overlaps 2 or more different classes in the
+                                         original hypnogram. See SparseHypnogram.get_period_at_time for details.
+
+        Returns:
+            hyp: ndarray of shape [n_periods]
+        """
+        start_time = self.to_internal_period_time(start_time, time_unit)
+        start_idx = self.period_time_to_idx(start_time, self.time_unit)
+        return self.get_hyp_periods_by_idx(start_idx, n_periods, on_overlapping)
+
+    def get_periods_by_time(self,
+                            start_time: [int, float],
+                            time_unit: Union[TimeUnit, str],
+                            n_periods: int = 1,
+                            channel_indices: list = None,
+                            on_overlapping: str = "RAISE") -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """
+        Equivalent method to self.get_periods_by_idx but working in time units instead of period indices.
+
+        Get a range of period of {X, y} data by time (self.no_hypnogram is False) else {X} starting from a time
+        point 'start_time'. 'start_time' must align exactly with the beginning of a period, otherwise a
+        ValueError is raised.
+
+        Args:
+            start_time (int, float):     The time point of the beginning of a period from which to get periods.
+            time_unit: (TimeUnit, str):  Time unit for parameter 'start_time'.
+            n_periods (int):             The number of periods to return
+            channel_indices (list):      Optional list of channel indices to extract from PSG. Extracts all with None.
+            on_overlapping: (str):       One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
+                                         period of length self.period_length overlaps 2 or more different classes in the
+                                         original hypnogram. See SparseHypnogram.get_period_at_time for details.
+
+        Returns:
+            psg: ndarray of shape [n_periods, self.data_per_period, C]
+            hyp: ndarray of shape [n_periods] IF self.no_hypnogram is False
+        """
+        start_time = self.to_internal_period_time(start_time, time_unit)
+        start_idx = self.period_time_to_idx(start_time, self.time_unit)
+        return self.get_periods_by_idx(start_idx, n_periods, channel_indices, on_overlapping)
+
+    def get_all_psg_periods(self, channel_indices: list = None) -> np.ndarray:
+        """
+        Returns the full PSG in periods, i.e., shape [self.n_periods, self.data_per_period, n_channels]
+
+        Args:
+            channel_indices (list): Optional list of channel indices to extract from PSG. Extracts all with None.
+        """
+        return self.get_psg_periods_by_idx(0, self.n_periods, channel_indices)
+
+    def get_all_hypnogram_periods(self, on_overlapping: str = "RAISE") -> np.ndarray:
+        """
+        Returns the full hypnogram in periods, i.e., shape [self.n_periods]
+
+        Args:
+            on_overlapping: str, One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
+                                 period of length self.period_length overlaps 2 or more different classes in the
+                                 original hypnogram. See SparseHypnogram.get_period_at_time for details.
+
+        """
+        return self.get_hyp_periods_by_idx(0, self.n_periods, on_overlapping)
+
+    def get_all_periods(self,
+                        channel_indices: list = None,
+                        on_overlapping: str = "RAISE") -> Union[Tuple[np.ndarray, np.ndarray], np.ndarray]:
+        """
+        Returns the full (dense) data of the SleepStudy
+
+        Args:
+            channel_indices (list): Optional list of channel indices to extract from PSG. Extracts all with None.
+            on_overlapping: (str):  One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
+                                    period of length self.period_length overlaps 2 or more different classes in the
+                                    original hypnogram. See SparseHypnogram.get_period_at_time for details.
+
+        Returns:
+            psg: An ndarray of shape [self.n_periods, self.data_per_period, n_channels]
+            hyp: An ndarray of shape [self.n_periods, 1] (if self.no_hypnogram == False)
+        """
+        psg = self.get_all_psg_periods(channel_indices)
+        if self.no_hypnogram:
+            return psg
+        hyp = self.get_all_hypnogram_periods(on_overlapping)
+        self._assert_similar_lengths(psg, hyp)
+        return psg, hyp
 
     @contextmanager
     def loaded_in_context(self, allow_missing_channels=False):
@@ -185,14 +443,13 @@ class AbstractBaseSleepStudy(ABC):
     @property
     def data_per_period(self) -> int:
         """
-        Computes and returns the data (samples) per period of
-        'period_length' seconds of time (en 'epoch' in sleep research)
+        Computes and returns the data (samples) per period of 'period_length' time
         """
-        dpp = self.period_length_sec * self.sample_rate
+        dpp = self.get_period_length_in(TimeUnit.SECOND) * self.sample_rate
         if not math.isclose(dpp, int(dpp)):
-            raise ValueError(f"Cannot compute data_per_period with period_length_sec "
-                             f"{self.period_length_sec} and sample_rate {self.sample_rate} as the "
-                             f"result {dpp} cannot be safely cast to an integer value.")
+            self.raise_err(ValueError, f"Cannot compute data_per_period with period_length {self.period_length} "
+                                       f"({self.time_unit}) and sample_rate {self.sample_rate} (Hz) "
+                                       f"as the result {dpp} cannot be safely cast to an integer value.")
         return int(dpp)
 
     def raise_err(self, err_obj, err_msg, _from=None):
@@ -227,7 +484,7 @@ class AbstractBaseSleepStudy(ABC):
         channel names to select from the PSG file on disk. All other channels
         are not loaded or removed after loading.
 
-        OBS setting this propery when self.loaded is True forces a reload
+        OBS setting this property when self.loaded is True forces a reload
 
         Args:
             channels: A list of channel names (strings) giving the names of
@@ -235,12 +492,11 @@ class AbstractBaseSleepStudy(ABC):
         """
         if channels is not None:
             if not isinstance(channels, (list, tuple)):
-                raise TypeError("'channels' must be a list or tuple, got "
-                                "{}.".format(type(channels)))
+                self.raise_err(TypeError, f"'channels' must be a list or tuple, got {type(channels)}.")
             if not all([isinstance(c, str) for c in channels]):
-                raise TypeError("Some values in 'select_channels' are not "
-                                "strings, got {}. Expected a flat list of "
-                                "strings.".format(channels))
+                self.raise_err(TypeError, f"Some values in 'select_channels' are not "
+                                          f"strings, got {channels}. Expected a flat list of "
+                                          f"strings.")
         channels = channels or []
         self._select_channels = channels
         if self.loaded:
@@ -267,34 +523,26 @@ class AbstractBaseSleepStudy(ABC):
         e = "'channels' must be a list of lists, where the sub-lists are the "\
             "same lengths as the 'select_channels' list. Got {}."
         if not self.select_channels:
-            raise ValueError("Must select primary channels before "
-                             "alternative.")
+            self.raise_err(ValueError, "Must select primary channels before alternative.")
         if channels is not None:
             if not isinstance(channels, (list, tuple)):
-                raise TypeError(e.format(channels))
+                self.raise_err(TypeError, e.format(channels))
             if len(channels) == 1:
                 channels = [ensure_list_or_tuple(channels[0])]
             for chan in channels:
                 if not isinstance(chan, (list, tuple)):
-                    raise TypeError(e.format(type(channels)))
+                    self.raise_err(TypeError, e.format(type(channels)))
                 if len(chan) != len(self.select_channels):
-                    raise ValueError(e.format(channels))
+                    self.raise_err(ValueError, e.format(channels))
                 if not all([isinstance(c, str) for c in chan]):
-                    raise TypeError("Some values in one of the sub-list of "
-                                    "alternative_select_channels are not "
-                                    "strings, got {}. Expected a list of lists"
-                                    " of strings.".format(channels))
+                    self.raise_err(TypeError, f"Some values in one of the sub-list of "
+                                              f"alternative_select_channels are not "
+                                              f"strings, got {channels}. Expected a list of lists"
+                                              f" of strings.")
         channels = channels or [[]]
         self._alternative_select_channels = channels
         if self.loaded:
             self.reload(warning=True, allow_missing_channels=False)
-
-    def period_idx_to_sec(self, period_idx: int) -> [int, float]:
-        """
-        Helper method that maps a period_idx (int) to the first second in that
-        period.
-        """
-        return period_idx * self.period_length_sec
 
     def _set_loaded_channels(self, loaded_channels):
         """
@@ -304,56 +552,6 @@ class AbstractBaseSleepStudy(ABC):
         """
         self._select_channels = loaded_channels   # OBS must set private
         self._alternative_select_channels = None  # OBS must set private
-
-    def get_period_at_sec(self, second: [int, float]) -> Tuple[np.ndarray, Union[int, np.ndarray]]:
-        """
-        Get a period of {X, y} data starting at 'second' seconds.
-
-        Returns:
-            X: An ndarray of shape [self.data_per_period, self.n_channels]
-            y: An ndarray of shape [1]
-        """
-        x = self.get_psg_period_at_sec(second)
-        y = self.get_stage_at_sec(second)
-        return x, y
-
-    def get_period_by_idx(self, period_idx: int) -> Tuple[np.ndarray, Union[int, np.ndarray]]:
-        """
-        Get a period of {X, y} data by index
-        Period starting at second 0 is index 0.
-
-        Returns:
-            X: An ndarray of shape [self.data_per_period, self.n_channels]
-            y: An ndarray of shape [1]
-        """
-        period_start_sec = self.period_idx_to_sec(period_idx)
-        return self.get_period_at_sec(period_start_sec)
-
-    @abstractmethod
-    def get_periods_by_idx(self, start_idx: int, end_idx: int) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Get a range of period of {X, y} data by indices
-        Period starting at second 0 is index 0.
-
-        Args:
-            start_idx (int): Index of first period to return
-            end_idx   (int): Index of last period to return (inclusive)
-
-        Returns:
-            X: ndarray of shape [N periods, self.data_per_period, C]
-            y: ndarray of shape [N periods, 1]
-        """
-        raise NotImplemented
-
-    def get_stage_by_idx(self, period_idx: int) -> Union[np.ndarray, int]:
-        """
-        Get the hypnogram stage at period index 'period_idx'.
-
-        Returns:
-            y: An ndarray of shape [1]
-        """
-        period_start_sec = self.period_idx_to_sec(period_idx)
-        return self.get_stage_at_sec(period_start_sec)
 
     def to_batch_generator(self, batch_size, overlapping=False):
         """
@@ -368,10 +566,11 @@ class AbstractBaseSleepStudy(ABC):
                          return non-overlapping, connected segments.
 
         Yields:
-            X: ndarray of shape [batch_size, self.data_per_period,
-                                 self.n_channels]
+            X: ndarray of shape [batch_size, self.data_per_period, self.n_channels]
             y: ndarray of shape [batch_size, 1]
         """
+        # TODO
+        raise NotImplementedError('TODO')
         x_batch, y_batch = [], []
         for idx in range(self.n_periods):
             x, y = self.get_period_by_idx(idx)
@@ -395,6 +594,9 @@ class AbstractBaseSleepStudy(ABC):
             period_sec: The starting second of the period to plot
             out_path:   Path to save the figure to
         """
+        # TODO
+        raise NotImplementedError('TODO')
+
         from psg_utils.visualization.psg_plotting import plot_period
         if bool(period_idx) == bool(period_sec):
             raise ValueError("Must specify either period_idx or period_sec.")
@@ -422,12 +624,14 @@ class AbstractBaseSleepStudy(ABC):
             out_path:           Path to save the figure to
             highlight_periods:  Plot period-separating vertical lines
         """
+        # TODO
+        raise NotImplementedError('TODO')
+
         from psg_utils.visualization.psg_plotting import plot_periods
         if bool(period_idxs) == bool(period_secs):
             raise ValueError("Must specify either period_idxs or period_secs.")
-        period_secs = list(period_secs or map(self.period_idx_to_sec,
-                                              period_idxs))
-        if any(np.diff(period_secs) != self.period_length_sec):
+        period_secs = list(period_secs or map(self.period_idx_to_sec, period_idxs))
+        if any(np.diff(period_secs) != self.get_period_length_in(TimeUnit.SECOND)):
             raise ValueError("Periods to plot must be consecutive.")
         xs = list(map(self.get_psg_period_at_sec, period_secs))
         if not self.no_hypnogram:

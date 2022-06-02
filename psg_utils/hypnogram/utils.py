@@ -11,14 +11,14 @@ psg_utils operates with the following notation on hypnogram encodings:
 
 'Sparse hypnogram':
     The hypnogram information is encoded in 3 identically sizes lists:
-      - init time seconds (list of integers of initial period time points)
-      - durations seconds (list of integers of seconds of period duration)
+      - init time (list of integers of initial period time points)
+      - durations (list of integers of period duration)
       - sleep stage (list of sleep stages, typically integer, for each period)
     ... from which a sleep stage at a particular point in time can be inferred.
 
 'Dense hypnogram':
     A 'dense' hypnogram array is an array that stores 1 sleep stage for every
-    'period_length_sec' seconds (typically 30s) of sleep.
+    'period_length' (typically 30s) of sleep.
 
 'Signal dense hypnogram':
     A 'signal dense' hypnogram array is an array that stores the sleep stage
@@ -27,10 +27,13 @@ psg_utils operates with the following notation on hypnogram encodings:
 """
 
 import logging
+import math
+
 import numpy as np
 from psg_utils.hypnogram import SparseHypnogram
 from psg_utils.hypnogram.formats import StartDurationStageFormat
 from psg_utils.hypnogram.stage_mapper import create_variable_ann_to_class_int_dict
+from psg_utils.time_utils import TimeUnit, convert_time
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +66,7 @@ def sparse_to_csv_file(inits, durs, stages, out_path, stage_map=None):
 
     Args:
         inits:      List of integers of initial period time points
-        durs:       List of integers of seconds of period duration
+        durs:       List of integers of period duration
         stages:     List of integer sleep stages for each period
         out_path:   String path to an output csv file
         stage_map:  Optional dictionary mapping integers in 'stages' to other
@@ -77,24 +80,25 @@ def sparse_to_csv_file(inits, durs, stages, out_path, stage_map=None):
             out_f.write("{},{},{}\n".format(i, d, s))
 
 
-def dense_to_sparse(array, period_length_sec, allow_trim=False):
+def dense_to_sparse(array, period_length, time_unit: TimeUnit = TimeUnit.SECOND, allow_trim=False):
     """
     Takes a 'dense' hypnogram array (ndarray of shape [-1]) of sleep stage
-    labels for every 'period_length_sec' second periods of sleep and returns a
+    labels for every 'period_length' periods of sleep and returns a
     sparse, Start-Duration-Stage representation of 3 equally sizes lists of
     'inits', 'durations' and 'stages' (see psg_utils.hypnogram.formats).
 
     Args:
         array:              1D ndarray of (dense) sleep stage labels
-        period_length_sec:  Length in seconds of 1 sleep stage period.
+        period_length:      Length in unit 'time_unit' of 1 sleep stage period.
+        time_unit:          TimeUnit specifying unit of 'period_length'
         allow_trim:         Allow trimming of the hypnogram duration in the
                             (probably rarely occurring) situation that the last
                             sleep stage period is computed to have a duration
-                            of less than 1 second, in which case it cannot be
+                            of less than 1 TimeUnit, in which case it cannot be
                             represented by our integer-valued durations.
                             Same goes for when the final period has a length
                             that is not evenly divisible by the period length
-                            of 'period_length_sec'.
+                            of 'period_length'.
                             If false, and trimming is needed due to either of
                             the two cases, an error is raised.
 
@@ -104,38 +108,37 @@ def dense_to_sparse(array, period_length_sec, allow_trim=False):
     """
     array = array.squeeze()
     if array.ndim != 1:
-        raise ValueError("Invalid dense array found of dim {} (expected 1)"
-                         "".format(array.ndim))
-    end_time = len(array) * period_length_sec
+        raise ValueError(f"Invalid dense array found of dim {array.ndim} (expected 1)")
+    end_time = len(array) * period_length
 
     # Get array of init dense inds
     start_inds = np.where([array[i+1] != array[i] for i in range(len(array)-1)])[0] + 1  # find transition indices
     start_inds = np.concatenate([[0], start_inds])
 
-    # Get init times (second)
-    inits = (start_inds * period_length_sec).astype(np.int)
+    # Get init times (in units of period_length)
+    inits = (start_inds * period_length).astype(np.int)
     durs = np.concatenate([np.diff(inits), [end_time-inits[-1]]])
     stages = array[start_inds]
 
     if durs[-1] == 0:
         if not allow_trim:
-            raise ValueError("Last duration is shorter than 1 second, "
-                             "but allow_trim was set to False")
+            raise ValueError(f"Last duration is shorter than 1 {time_unit}, "
+                             f"but allow_trim was set to False")
         # Remove trailing
         inits = inits[:-1]
         durs = durs[:-1]
         stages = stages[:-1]
-    trail = durs[-1] % period_length_sec
+    trail = durs[-1] % period_length
     if trail:
         if not allow_trim:
-            raise ValueError("Last duration of length {} seconds is not "
-                             "divisible by the period length of {} seconds, "
-                             "and allow_trim was set to False")
+            raise ValueError(f"Last duration of length {durs[-1]} ({time_unit}) is not "
+                             f"divisible by the period length of {period_length}, "
+                             f"and allow_trim was set to False")
         durs[-1] -= trail
     return inits, durs, stages
 
 
-def signal_dense_to_sparse(array, sample_rate, period_length_sec, allow_trim=False):
+def signal_dense_to_sparse(array, sample_rate, period_length, time_unit: TimeUnit = TimeUnit.SECOND, allow_trim=False):
     """
     Takes a 'signal dense' hypnogram array (ndarray of shape [-1]) of sleep
     stages and returns a sparse, Start-Duration-Stage representation of 3
@@ -152,72 +155,84 @@ def signal_dense_to_sparse(array, sample_rate, period_length_sec, allow_trim=Fal
     Args:
         array:              1D ndarray of (signal dense) sleep stage labels
         sample_rate:        The sample rate of the input signal
-        period_length_sec:  Length in seconds of 1 sleep stage period.
+        period_length:      Length in arbitrary time unit of 1 sleep stage period.
+        time_unit:          TimeUnit specifying unit of 'period_length'
         allow_trim:         See 'signal_dense_to_dense' and 'dense_to_sparse'
 
     Returns:
         inits, durs, stages format
         3 lists of identical length
     """
-    d = signal_dense_to_dense(array, sample_rate, period_length_sec, allow_trim)
-    return dense_to_sparse(d, period_length_sec, allow_trim)
+    dense_array = signal_dense_to_dense(
+        array,
+        sample_rate=sample_rate,
+        period_length=period_length,
+        time_unit=time_unit,
+        allow_trim=allow_trim
+    )
+    return dense_to_sparse(array=dense_array,
+                           period_length=period_length,
+                           time_unit=time_unit,
+                           allow_trim=allow_trim)
 
 
-def signal_dense_to_dense(array, sample_rate, period_length_sec, allow_trim=False):
+def signal_dense_to_dense(array, sample_rate, period_length, time_unit: TimeUnit = TimeUnit.SECOND, allow_trim=False):
     """
     Takes a 'signal dense' hypnogram array (ndarray of shape [-1]) of sleep
-    stages and returns a dense array of 1 label for every 'period_length_sec'
-    second periods of sleep.
+    stages and returns a dense array of 1 label for every 'period_length' periods of sleep.
 
-    OBS: Assumes that all values within 'period_length_sec' seconds of signal
+    OBS: Assumes that all values within 'period_length' of signal
     are identical starting at the 0th value in the array.
 
     See 'signal_dense_to_sparse' for a description of signal dense arrays.
 
     Args:
         array:              1D ndarray of (signal dense) sleep stage labels
-        sample_rate:        The sample rate of the input signal
-        period_length_sec:  Length in seconds of 1 sleep stage period.
-        allow_trim:         Allow the duration of array (in seconds) to be
-                            non-evenly divisible by the 'period_length_sec'.
-                            The remainder will be ignored.
-                            Otherwise, an error is raised if the array cannot
-                            be evenly split.
+        sample_rate:        The sample rate in Hz of the input signal
+        period_length:      Length unit 'time_unit' of 1 sleep stage period.
+        time_unit:          TimeUnit specifying unit of 'period_length'
+        allow_trim:         Allow the duration of array to be non-evenly divisible by the 'period_length'.
+                            The remainder will be ignored/removed.
+                            Otherwise, an error is raised if the array cannot be evenly split.
 
     Returns:
-        ndarray of shape [-1] with 1 sleep stage label value for every
-        'period_length_sec' seconds of input signal.
+        ndarray of shape [-1] with 1 sleep stage label value for every 'period_length' of input signal.
     """
     array = array.squeeze()
-    if sample_rate is None or period_length_sec is None:
-        raise ValueError("Must specify the 'sample_rate' and 'period_length_sec' parameters.")
+    if sample_rate is None or period_length is None:
+        raise ValueError("Must specify the 'sample_rate' and 'period_length' parameters.")
     if array.ndim != 1:
-        raise ValueError("Invalid dense array found of dim {} (expected 1)"
-                         "".format(array.ndim))
+        raise ValueError(f"Invalid dense array found of dim {array.ndim} (expected 1)")
     if len(array) % sample_rate:
-        raise ValueError("Signal dense array of shape {} is not divisible by "
-                         "the sample rate of {}".format(array.shape,
-                                                        sample_rate))
-    end_time = int(len(array) / sample_rate)
-    if end_time < period_length_sec:
-        raise ValueError("Signal dense array too short (length {}) with period"
-                         " length of {} seconds). Maybe the array is already "
-                         "dense?".format(len(array), period_length_sec))
-    trail = (end_time % period_length_sec) * sample_rate
+        raise ValueError(f"Signal dense array of shape {array.shape} is not divisible by "
+                         f"the sample rate of {sample_rate}")
+    end_time_second = int(len(array) / sample_rate)
+    end_time = convert_time(end_time_second, TimeUnit.SECOND, time_unit)
+    if end_time < period_length:
+        raise ValueError(f"Signal dense array too short (length {len(array)}) with period "
+                         f"length of {period_length} ({time_unit})). Maybe the array is already "
+                         f"dense?")
+    trail = convert_time(end_time % period_length, time_unit, TimeUnit.SECOND) * sample_rate
     if trail:
         if not allow_trim:
-            raise ValueError("Signal dense array of length {} ({} seconds) "
-                             "is not evenly divisible by the period length "
-                             "of {} seconds, and allow_trim was set to "
-                             "False.")
-        array = array[:-trail]
+            raise ValueError(f"Signal dense array of length {len(array)} ({end_time}, {time_unit}) "
+                             f"is not evenly divisible by the period length "
+                             f"of {period_length} ({time_unit}), and allow_trim was set to "
+                             f"False.")
+        if not math.isclose(int(trail), trail):
+            raise ValueError(f"Signal dense array of length {len(array)} ({end_time}, {time_unit}) "
+                             f"is not evenly divisible by the period length "
+                             f"of {period_length} ({time_unit}). Attempting to remove {trail} values (sample rate "
+                             f"{sample_rate}) not possible as the unit cannot be safely cast to an integer. ")
+        else:
+            array = array[:-trail]
 
     # Make dense
-    s = [period_length_sec * sample_rate, -1]
+    s = [int(convert_time(period_length, time_unit, TimeUnit.SECOND) * sample_rate), -1]
     return np.reshape(array, s, order="F")[0, :]
 
 
-def ndarray_to_ids_format(array, period_length_sec, sample_rate):
+def ndarray_to_ids_format(array, sample_rate, period_length, time_unit: TimeUnit = TimeUnit.SECOND):
     """
     Loads flat ndarrays storing sleep stages and converts it to a
     init-duration-stage format. Supports both 'dense' and 'signal dense' arrays
@@ -228,9 +243,10 @@ def ndarray_to_ids_format(array, period_length_sec, sample_rate):
 
     Args:
         array:              ndarray of shape [-1], integer type
-        period_length_sec:  Sleep 'epoch'/period length in seconds.
+        period_length:      Sleep 'epoch'/period length in arbitrary time units.
         sample_rate:        The sample rate of the original data (needed for
                             signal dense conversion).
+        time_unit:          TimeUnit specifying unit of 'period_length'
 
     Returns:
         A StartDurationStageFormat object
@@ -241,13 +257,14 @@ def ndarray_to_ids_format(array, period_length_sec, sample_rate):
             # Assume the array is 'signal dense' - a ValueError will be thrown if
             # this conversion fail, in which case we can assume the array is dense
             inits, durs, stages = signal_dense_to_sparse(array,
-                                                         sample_rate,
-                                                         period_length_sec,
+                                                         sample_rate=sample_rate,
+                                                         period_length=period_length,
+                                                         time_unit=time_unit,
                                                          allow_trim=True)
         except ValueError:
             # Dense already
             inits, durs, stages = dense_to_sparse(array,
-                                                  period_length_sec,
+                                                  period_length=period_length,
                                                   allow_trim=True)
         # Create the SparseHypnogram from the sparse Start-Duration-Stage data
         return StartDurationStageFormat((inits, durs, stages))
@@ -259,48 +276,56 @@ def ndarray_to_ids_format(array, period_length_sec, sample_rate):
                                   "one-hot encoding?".format(array.shape))
 
 
-def sparse_hypnogram_from_ids_format(ids_tuple, period_length_sec, ann_to_class):
+def sparse_hypnogram_from_ids_format(ids_tuple: tuple,
+                                     ann_to_class: dict,
+                                     period_length: [int, float],
+                                     time_unit: TimeUnit = TimeUnit.SECOND,
+                                     hyp_internal_time_unit: TimeUnit = TimeUnit.MILLISECOND):
     """
     Initializes a SparseHypnogram from Start-Duration-Stage formatted data.
 
     Args:
-        ids_tuple:          3-tuple of equal length lists of starts, durations
-                            and sleep stages (see psg_utils.hypnogram)
-        period_length_sec:  Sleep 'epoch'/period length in seconds.
-        ann_to_class:       Dictionary mapping from labels in array to sleep
-                            stage integer value representations. Can be None,
-                            in which case annotations will be automatically
-                            inferred.
+        ids_tuple:              3-tuple of equal length lists of starts, durations
+                                and sleep stages (see psg_utils.hypnogram)
+        ann_to_class:           Dictionary mapping from labels in array to sleep
+        period_length:          Sleep 'epoch'/period length in units 'time_unit'.
+                                stage integer value representations. Can be None,
+                                in which case annotations will be automatically
+                                inferred.
+        time_unit:              Time unit for period_length and inits/durations in 'ids_tuple'
+        hyp_internal_time_unit: Time unit to use internally in sparse hypnogram. Can usually be left default.
 
     Returns:
         A SparseHypnogram object, annotation dict
     """
-    start_sec, duration_sec, annotations = ids_tuple
+    inits, durations, annotations = ids_tuple
     if ann_to_class is None:
         ann_to_class = create_variable_ann_to_class_int_dict(annotations)
 
     # Translate annotations to class integers and init SparseHypnogram
     ann_class_ints = [ann_to_class[a] for a in annotations]
-    sparse_hyp = SparseHypnogram(init_times_sec=start_sec,
-                                 durations_sec=duration_sec,
+    sparse_hyp = SparseHypnogram(init_times=inits,
+                                 durations=durations,
                                  sleep_stages=ann_class_ints,
-                                 period_length_sec=period_length_sec)
+                                 period_length=period_length,
+                                 time_unit=time_unit,
+                                 internal_time_unit=hyp_internal_time_unit)
     return sparse_hyp, ann_to_class
 
 
-def squeeze_events(start_sec, duration_sec, annotations):
+def squeeze_events(inits, durations, annotations):
     """
-    Takes a list of IDS events of the form (start_sec, durs_sec, stage_str) and returns a list of
+    Takes a list of IDS events of the form (init, dur, stage_str) and returns a list of
     similar tuples but with consecutive similar stages are merged.
 
     Args:
-        start_sec:     A list of int/float event start times in seconds
-        duration_sec:  A list of int/float event durations in seconds
+        inits:         A list of int/float event start times
+        durations:     A list of int/float event durations
         annotations:   A list of string stage/event annotations
     """
     squeezed = []
-    running = [start_sec[0], duration_sec[0], annotations[0]]
-    for start, dur, stage in zip(start_sec[1:], duration_sec[1:], annotations[1:]):
+    running = [inits[0], durations[0], annotations[0]]
+    for start, dur, stage in zip(inits[1:], durations[1:], annotations[1:]):
         if start == running[0] + running[1] and stage == running[2]:
             running[1] += dur
         else:
@@ -310,22 +335,22 @@ def squeeze_events(start_sec, duration_sec, annotations):
     return tuple(zip(*squeezed))
 
 
-def hyp_has_gaps(init_times_sec, durations_sec):
+def hyp_has_gaps(inits, durations):
     """
-    Checks if a hypnogram as specified by a list of init times in seconds and a list of
-    same length or length N-1 of durations in seconds has any gaps.
+    Checks if a hypnogram as specified by a list of init times and a list of
+    same length or length N-1 of durations has any gaps.
 
-    :param init_times_sec: list of integer start times, length N
-    :param durations_sec: list of integer duration times, length N or N-1
+    :param inits: list of integer start times, length N
+    :param durations: list of integer duration times, length N or N-1
     :return: bool
     """
-    if len(durations_sec) == len(init_times_sec):
-        durations_sec = durations_sec[:-1]
-    actual_diffs = np.diff(init_times_sec)
-    return np.any(~np.isclose(actual_diffs, durations_sec))
+    if len(durations) == len(inits):
+        durations = durations[:-1]
+    actual_diffs = np.diff(inits)
+    return np.any(~np.isclose(actual_diffs, durations))
 
 
-def fill_hyp_gaps(init_times_sec, durations_sec, stages, fill_value):
+def fill_hyp_gaps(inits, durations, stages, fill_value):
     """
     Fill gaps in a hypnogram in inits, durs, stages form with a value 'fill_value'.
 
@@ -341,24 +366,24 @@ def fill_hyp_gaps(init_times_sec, durations_sec, stages, fill_value):
     Durs: [10, 10, 30, 10]
     Stages: ['W', 'N1', 'UNKNOWN', 'N1']
     """
-    if not hyp_has_gaps(init_times_sec, durations_sec):
+    if not hyp_has_gaps(inits, durations):
         # Do nothing
-        return init_times_sec, durations_sec, stages
-    assert len(init_times_sec) == len(durations_sec) == len(stages), "Inits, durations and stages must have equal length"
-    actual_diffs = np.diff(init_times_sec)
-    gap_lengths = actual_diffs - durations_sec[:-1]
+        return inits, durations, stages
+    assert len(inits) == len(durations) == len(stages), "Inits, durations and stages must have equal length"
+    actual_diffs = np.diff(inits)
+    gap_lengths = actual_diffs - durations[:-1]
     gap_inds = np.where(gap_lengths)[0]
-    init_times_sec, durations_sec, stages = map(list, (init_times_sec, durations_sec, stages))
+    inits, durations, stages = map(list, (inits, durations, stages))
     for insert_idx, ind in enumerate(sorted(gap_inds)):
         if ind >= len(gap_lengths):
             raise NotImplementedError("The implementation has not yet been tested for its handling "
                                       "of this situation. Please raise an issue on GitHub.")
         # Insert gap section
         length = gap_lengths[ind]
-        init_times_sec.insert(ind+1+insert_idx, init_times_sec[ind+insert_idx] + durations_sec[ind+insert_idx])
-        durations_sec.insert(ind+1+insert_idx, length)
+        inits.insert(ind + 1 + insert_idx, inits[ind + insert_idx] + durations[ind + insert_idx])
+        durations.insert(ind + 1 + insert_idx, length)
         stages.insert(ind+1+insert_idx, fill_value)
-    return tuple(map(tuple, (init_times_sec, durations_sec, stages)))
+    return tuple(map(tuple, (inits, durations, stages)))
 
 
 def load_events_file(events_file_path):
@@ -378,18 +403,17 @@ def load_events_file(events_file_path):
     return events
 
 
-def get_indices_from_events(events, period_length_sec):
+def get_indices_from_events(events, period_length):
     """
-
     :param events:
-    :param period_length_sec:
+    :param period_length:
     :return:
     """
     indices = []
     for onset, dur, event in events:
         event = event.upper()
         round_func = np.ceil if "START" in event else (np.floor if "STOP" in event else np.round)
-        index = int(round_func(onset / period_length_sec))
+        index = int(round_func(onset / period_length))
         indices.append(index)
     return indices
 
@@ -399,7 +423,7 @@ def get_psg_start_stop_events(events):
     :param events:
     :return:
         List of START/STOP events. Length 2 list of format:
-            [[start_sec, 0?? (duration), "START PSG"], [start_sec, 0?? (duration), "STOP PSG"]]
+            [[inits, 0?? (duration), "START PSG"], [inits, 0?? (duration), "STOP PSG"]]
     """
     # Filter to keep only start/stop PSG events
     start_stop_events = list(filter(lambda e: "psg" in e[-1].lower(), events))
@@ -431,7 +455,7 @@ def get_light_events(events, first_and_last_only=False):
     light_events = sorted(light_events, key=lambda x: x[0])
 
     # Standardize to (onset, duration, "LIGHTS ON/OFF (STOP/START)") tuples
-    # Also subtract offset seconds (if array was shifted in time due to trimming, e.g. with start/stop PSG events)
+    # Also subtract offsets (if array was shifted in time due to trimming, e.g. with start/stop PSG events)
     light_events = [(e[0], e[1], "LIGHTS ON (STOP)" if "on" in e[-1].lower() else "LIGHTS OFF (START)")
                     for e in light_events]
 
@@ -474,6 +498,8 @@ def filter_events_by_start_stop_events(events, start_stop_events):
     :param events:
     :return:
     """
+    # TODO
+    raise NotImplementedError("TODO")
     # Sort, check alternating, starting with "START" event
     start_stop_events = check_start_stop_events(start_stop_events)
 
@@ -500,6 +526,8 @@ def filter_hypnogram_by_start_stop_events(dense_hypnogram_array, start_stop_even
     """
     TODO
     """
+    # TODO
+    raise NotImplementedError("TODO")
     # Sort, check alternating, starting with "START" event, ends with "STOP" event
     start_stop_events = check_start_stop_events(start_stop_events)
 

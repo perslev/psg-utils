@@ -14,6 +14,7 @@ from psg_utils.preprocessing import (apply_scaling, strip_funcs, apply_strip_fun
                                       apply_quality_control_func)
 from psg_utils.hypnogram.utils import create_class_int_to_period_idx_dict
 from psg_utils.dataset.sleep_study.subject_dir_sleep_study_base import SubjectDirSleepStudyBase
+from psg_utils.time_utils import TimeUnit
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +40,11 @@ class SleepStudy(SubjectDirSleepStudyBase):
                  psg_regex=None,
                  hyp_regex=None,
                  header_regex=None,
-                 period_length_sec=None,
                  no_hypnogram=None,
                  annotation_dict=None,
+                 period_length: [int, float] = 30,
+                 time_unit: Union[TimeUnit, str] = TimeUnit.SECOND,
+                 internal_time_unit: Union[TimeUnit, str] = TimeUnit.MILLISECOND,
                  load=False):
         """
         Initialize a SleepStudy object from PSG/HYP data
@@ -60,28 +63,32 @@ class SleepStudy(SubjectDirSleepStudyBase):
         'subject_dir'.
 
         Args:
-            subject_dir:      (str)    File path to a directory storing the
-                                       subject data.
-            psg_regex:        (str)    Optional regex used to select PSG file
-            hyp_regex:        (str)    Optional regex used to select HYP file
-            header_regex:     (str)    Optional regex used to select a header file
-                                       OBS: Rarely used as most formats store headers internally, or
-                                        have header paths which are inferrable from the psg_path.
-            period_length_sec (int)    Sleep 'epoch' (segment/period) length in
-                                       seconds
-            no_hypnogram      (bool)   Initialize without ground truth data.
-            annotation_dict   (dict)   A dictionary mapping from labels in the
-                                       hyp_file_path file to integers
-            load              (bool)   Load the PSG object at init time.
+            subject_dir:      (str)         File path to a directory storing the
+                                              subject data.
+            psg_regex:        (str)         Optional regex used to select PSG file
+            hyp_regex:        (str)         Optional regex used to select HYP file
+            header_regex:     (str)         Optional regex used to select a header file
+                                            OBS: Rarely used as most formats store headers internally, or
+                                              have header paths which are inferrable from the psg_path.
+            no_hypnogram      (bool)        Initialize without ground truth data.
+            annotation_dict   (dict)        A dictionary mapping from labels in the hyp_file_path file to integers
+            period_length      (int/float)  Sleep 'epoch' (segment/period) length in units 'time_unit' (see below)
+            time_unit          (TimeUnit)   TimeUnit object specifying the unit of time of 'period_length'
+            internal_time_unit (TimeUnit)   TimeUnit object specifying the unit of time to use internally for storing
+                                              times. Affects the values returned by methods or attributes such as
+                                              self.period_length.
+            load              (bool)        Load the PSG object at init time.
         """
         super(SleepStudy, self).__init__(
             subject_dir=subject_dir,
             psg_regex=psg_regex,
             hyp_regex=hyp_regex,
             header_regex=header_regex,
-            period_length_sec=period_length_sec,
             no_hypnogram=no_hypnogram,
-            annotation_dict=annotation_dict
+            annotation_dict=annotation_dict,
+            period_length=period_length,
+            time_unit=time_unit,
+            internal_time_unit=internal_time_unit
         )
         # Hidden attributes controlled in property functions to limit setting
         # of these values to the load() function
@@ -343,11 +350,11 @@ class SleepStudy(SubjectDirSleepStudyBase):
         self._set_header_fields(header)
 
         if self.hyp_file_path is not None and not self.no_hypnogram:
-            self._hypnogram, \
-            self.annotation_dict = load_hypnogram(self.hyp_file_path,
-                                                  period_length_sec=self.period_length_sec,
-                                                  annotation_dict=self.annotation_dict,
-                                                  sample_rate=header["sample_rate"])
+            self._hypnogram, self.annotation_dict = load_hypnogram(self.hyp_file_path,
+                                                                   period_length=self.period_length,
+                                                                   time_unit=self.time_unit,
+                                                                   annotation_dict=self.annotation_dict,
+                                                                   sample_rate=header["sample_rate"])
         else:
             self._hypnogram = False
 
@@ -458,44 +465,5 @@ class SleepStudy(SubjectDirSleepStudyBase):
         else:
             return counts
 
-    def get_class_indicies(self, class_int: int) -> np.ndarray:
+    def get_class_indices(self, class_int: int) -> np.ndarray:
         return self.class_to_period_dict[class_int]
-
-    def get_full_psg(self) -> np.ndarray:
-        """
-        TODO
-
-        Returns:
-
-        """
-        return self.psg
-
-    def extract_from_psg(self,
-                         start_second: Union[int, float],
-                         end_second: Union[int, float],
-                         channel_inds: list = None) -> np.ndarray:
-        """
-        Extract PSG data from second 'start' (inclusive) to second 'end'
-        (exclusive)
-
-        Args:
-            start_second: int or float, start second to extract from
-            end_second: int or float, end second to extract from
-            channel_inds: list, list of channel indices to extract from
-
-        Returns:
-            A numpy view of self.psg
-        """
-        if start_second > self.last_period_start_sec:
-            raise ValueError("Cannot extract a full period starting from second"
-                             " {}. Last full period of {} seconds starts at "
-                             "second {}.".format(start_second, self.period_length_sec,
-                                                 self.last_period_start_sec))
-        sr = self.sample_rate
-        first_row = int(start_second * sr)
-        last_row = int(end_second * sr)
-        rows = self.psg[first_row:last_row]
-        if channel_inds is not None:
-            return rows[:, channel_inds]
-        else:
-            return rows

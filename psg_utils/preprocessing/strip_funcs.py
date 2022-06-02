@@ -184,7 +184,7 @@ def strip_to_match(psg, hyp, sample_rate, class_int=None, check_lengths=False, *
     if class_int and hyp.total_duration_sec > psg_length_sec:
         # Remove trailing class integer
         strip_class_trailing(None, hyp, class_int, None)
-    # Trim PSG first to ensure length divisible by period_length_sec*sample_rate
+    # Trim PSG first to ensure length divisible by period_length*sample_rate
     psg, _ = trim_psg_trailing(psg, sample_rate, hyp.period_length_sec)
     psg_length_sec = psg.shape[0] / sample_rate
     if hyp.total_duration_sec > psg_length_sec:
@@ -305,7 +305,7 @@ def drop_class(psg, hyp, class_int, sample_rate,
     # Create new hypnogram (just to perform some value checks)
     hyp = SparseHypnogram(inits, durations, stages,
                           period_length=hyp.period_length,
-                          org_time_unit=hyp.time_unit,       # Use same time units
+                          time_unit=hyp.time_unit,  # Use same time units
                           internal_time_unit=hyp.time_unit)  # Use same time units
 
     if call_strip_to_match:

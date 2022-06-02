@@ -29,7 +29,7 @@ class H5Dataset(AbstractBaseSleepStudyDataset):
                 pair = H5SleepStudy(
                     self.h5_dataset_obj[pair_id],
                     annotation_dict=annotation_dict,
-                    period_length_sec=self.period_length_sec
+                    period_length=self.period_length_sec
                 )
             except KeyError:
                 continue  # missing data, TODO, temp

@@ -2,7 +2,7 @@
 A set of functions that apply quality-control checks on the PSG data.
 The function take in a PSG and a set of parameters and may alter the PSG.
 
-The period_length_sec argument should also be accepted, but functions could
+The period_length argument should also be accepted, but functions could
 ignore this and do quality control checks that exceed the original epoch
 boundaries.
 """
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def zero_out_noisy_epochs(psg, sample_rate, period_length_sec,
                           max_times_global_iqr=20):
     """
-    Sets all values in a epoch of 'period_length_sec' seconds of signal to zero
+    Sets all values in a epoch of 'period_length' seconds of signal to zero
     (channel-wise) if any (absolute) value within that period exceeds
     'max_times_global_iqr' times the IQR of all data in the channel across time
 
@@ -129,7 +129,7 @@ def apply_quality_control_func(sleep_study, sample_rate, warn_fraction=0.15, war
                   period_length_sec=sleep_study.period_length_sec,
                   **kwargs)
     if warn:
-        n_periods = int(psg.shape[0]/(sample_rate*sleep_study.period_length_sec))
+        n_periods = int(psg.shape[0] / (sample_rate * sleep_study.period_length_sec))
         for i, chan_inds in enumerate(inds):
             fraction = len(chan_inds) / n_periods
             warn_str = "Quality control for sample '{}' affected " \

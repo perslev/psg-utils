@@ -1,5 +1,6 @@
 import enum
 import math
+from typing import Union, Tuple
 
 
 class TimeUnit(enum.Enum):
@@ -19,7 +20,20 @@ class TimeUnit(enum.Enum):
                                  f"in upper/lower case letters.") from e
 
 
-def convert_time(time: [float, int], from_unit: TimeUnit, to_unit: TimeUnit, cast_to_int=False):
+def standardize_time_input(time_input: Union[TimeUnit, str]) -> TimeUnit:
+    """
+    Takes a time input 'time_input' of type TimeUnit or a string convertable with TimeUnit.from_string
+    and returns a TimeUnit object.
+    """
+    if isinstance(time_input, TimeUnit):
+        return time_input
+    else:
+        return TimeUnit.from_string(time_input)
+
+
+def convert_time(time: [float, int], from_unit: Union[TimeUnit, str], to_unit: Union[TimeUnit, str], cast_to_int=False):
+    to_unit = standardize_time_input(to_unit)
+    from_unit = standardize_time_input(from_unit)
     factor = to_unit.value / from_unit.value
     converted = time * factor
     if cast_to_int:
