@@ -214,20 +214,28 @@ def _standardized_h5_header(h5_file, channel_group_name="channels"):
     # Traverse the h5 archive for datasets and assigned attributes
     h5_content = _traverse_h5_file(h5_file[channel_group_name], attributes=h5_file.attrs)
     header = {
-        "channel_names": [],
+        "channel_names": [None] * len(h5_content),
+        "sample_rate": [None] * len(h5_content),
+        "date": [None] * len(h5_content),
+        "length": [None] * len(h5_content),
         "channel_paths": {},  # will store channel_name: channel path entries
-        "sample_rate": [],
-        "date": [],
-        "length": []
     }
-    for channel_path, attributes in h5_content.items():
+    channel_inds = []
+    for i, (channel_path, attributes) in enumerate(h5_content.items()):
+        index = attributes.get("channel_index") if attributes.get("channel_index") is not None else i
+        channel_inds.append(index)
         channel_name = channel_path.split("/")[-1]
         header["channel_paths"][channel_name] = channel_path
-        header["channel_names"].append(channel_name)
-        header["sample_rate"].append(attributes.get("sample_rate"))
-        header["date"].append(attributes.get("date"))
-        header["length"].append(attributes.get("length"))
+        header["channel_names"][index] = channel_name
+        header["sample_rate"][index] = attributes.get("sample_rate")
+        header["date"][index] = attributes.get("date")
+        header["length"][index] = attributes.get("length")
     header["n_channels"] = len(h5_content)
+
+    if len(set(channel_inds)) != len(h5_content):
+        raise ValueError("Some channel datasets in the H5 file had the 'channel_index' annotation, "
+                         "while others did not. This is now supported. All or none of the channel should have "
+                         "this annotation")
 
     # Ensure all dates, lengths and sample rate attributes are equal
     # TODO: Remove this restriction at least for sample rates; requires handling at PSG loading time
