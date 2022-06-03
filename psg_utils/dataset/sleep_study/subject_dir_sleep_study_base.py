@@ -109,6 +109,7 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy, ABC):
         Returns:
             psg: ndarray of shape [n_periods, self.data_per_period, n_channels]
         """
+        self._assert_period_index_bounds(start_idx + n_periods - 1)
         data_start_idx = start_idx * self.data_per_period
         data_end_idx = data_start_idx + (self.data_per_period * n_periods)
         psg = self.psg[data_start_idx:data_end_idx]
@@ -130,6 +131,7 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy, ABC):
         Returns:
             hyp: ndarray of shape [n_periods]
         """
+        self._assert_period_index_bounds(start_idx + n_periods - 1)
         hyp = np.empty(shape=[n_periods], dtype=Defaults.HYP_DTYPE)
         for i, idx in enumerate(range(start_idx, start_idx+n_periods)):
             period_start_time = self.period_idx_to_time(idx)
