@@ -34,12 +34,13 @@ class AbstractBaseSleepStudy(ABC):
                                              self.period_length.
         """
         self.annotation_dict = annotation_dict
-        self.no_hypnogram = no_hypnogram
+        self._no_hypnogram = bool(no_hypnogram)
 
         # Convert period_length input to an internal integer representation in units 'internal_time_unit' (TimeUnit)
         self._time_unit = standardize_time_input(internal_time_unit)
+        self._data_time_unit = standardize_time_input(time_unit)
         try:
-            self._period_length = convert_time(period_length, time_unit, internal_time_unit, cast_to_int=True)
+            self._period_length = convert_time(period_length, self.data_time_unit, self.time_unit, cast_to_int=True)
         except ValueError as e:
             raise ValueError(f"Parameter 'period_length' should be a whole number/integer. "
                              f"Consider setting different org and/or internal time units "
@@ -138,7 +139,8 @@ class AbstractBaseSleepStudy(ABC):
 
     @property
     @abstractmethod
-    def date(self) -> Union[None, datetime]:
+    def date(self) -> Union[None, datetime, str]:
+        """ Returns the date. May be None, a datetime object or string (e.g. UNKNOWN) """
         raise NotImplementedError
 
     @property
@@ -147,9 +149,26 @@ class AbstractBaseSleepStudy(ABC):
         raise NotImplementedError
 
     @property
+    def class_to_period_dict(self) -> dict:
+        return self._class_to_period_dict
+
+    @property
+    def classes(self) -> np.ndarray:
+        return np.array(sorted(self._class_to_period_dict.keys()))
+
+    @property
+    def no_hypnogram(self) -> bool:
+        return self._no_hypnogram
+
+    @property
     def time_unit(self) -> TimeUnit:
         """ Returns the internal time unit """
         return self._time_unit
+
+    @property
+    def data_time_unit(self) -> TimeUnit:
+        """ Returns the time unit for the raw (hypnogram) data """
+        return self._data_time_unit
 
     @property
     def period_length(self) -> int:
@@ -207,17 +226,18 @@ class AbstractBaseSleepStudy(ABC):
         """
         return self.n_channels
 
-    def period_idx_to_time(self, period_idx: int) -> [int, float]:
+    def period_idx_to_time(self, period_idx: int) -> int:
         """
         Helper method that maps a period_idx (int) to the first time point in that period.
         """
+        self._assert_period_index_bounds(period_idx)
         return period_idx * self.period_length
 
-    def period_time_to_idx(self, time: [int, float], time_unit: Union[TimeUnit, str]):
+    def period_time_to_idx(self, time: [int, float], time_unit: Union[TimeUnit, str]) -> int:
         """
         Helper method that maps a period start time in units 'time_unit' to its period index.
         """
-        time = self.to_internal_period_time(time, time_unit)
+        time = self._to_internal_period_time(time, time_unit)
         return int(time / self.period_length)
 
     def _assert_similar_lengths(self, psg_arr, hyp_arr):
@@ -233,6 +253,12 @@ class AbstractBaseSleepStudy(ABC):
                        "SleepStudyDataset.set_strip_func())".format(len(psg_arr),
                                                                     len(hyp_arr)))
             self.raise_err(ValueError, err_msg)
+
+    def _assert_period_index_bounds(self, period_idx: int):
+        if period_idx < 0 or self.n_periods <= period_idx:
+            self.raise_err(IndexError, f"Period index {period_idx} is out of bounds "
+                                       f"(either negative or >= the total number of periods "
+                                       f"({self.n_periods})")
 
     def get_periods_by_idx(self,
                            start_idx: int,
@@ -263,7 +289,7 @@ class AbstractBaseSleepStudy(ABC):
             self._assert_similar_lengths(psg, hyp)
             return psg, hyp
 
-    def to_internal_period_time(self, time: [int, float], time_unit: Union[TimeUnit, str]) -> int:
+    def _to_internal_period_time(self, time: [int, float], time_unit: Union[TimeUnit, str]) -> int:
         """
         Helper method that:
 
@@ -292,15 +318,15 @@ class AbstractBaseSleepStudy(ABC):
                 self.raise_err(ValueError, f"Invalid time of {internal_time}, not divisible by period "
                                            f"length of {self.period_length}")
             if internal_time >= self.recording_length or internal_time < 0:
-                self.raise_err(ValueError, f"Invalid time of {internal_time}, outside range of sleep study "
+                self.raise_err(IndexError, f"Invalid time of {internal_time}, outside range of sleep study "
                                            f"of {self.recording_length} ({self.time_unit})")
             return internal_time
 
     def get_psg_periods_by_time(self,
                                 start_time: [int, float],
                                 time_unit: Union[TimeUnit, str],
-                                channel_indices: list = None,
-                                n_periods: int = 1) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+                                n_periods: int = 1,
+                                channel_indices: list = None) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Equivalent method to self.get_psg_periods_by_idx but working in time units instead of period indices.
 
@@ -311,13 +337,13 @@ class AbstractBaseSleepStudy(ABC):
         Args:
             start_time (int, float):     The time point of the beginning of a period from which to get periods.
             time_unit: (TimeUnit, str):  Time unit for parameter 'start_time'.
-            channel_indices (list):      Optional list of channel indices to extract from PSG. Extracts all with None.
             n_periods  (int):            The number of periods to return
+            channel_indices (list):      Optional list of channel indices to extract from PSG. Extracts all with None.
 
         Returns:
             psg: ndarray of shape [n_periods, self.data_per_period, C]
         """
-        start_time = self.to_internal_period_time(start_time, time_unit)
+        start_time = self._to_internal_period_time(start_time, time_unit)
         start_idx = self.period_time_to_idx(start_time, self.time_unit)
         return self.get_psg_periods_by_idx(start_idx, n_periods, channel_indices)
 
@@ -343,7 +369,7 @@ class AbstractBaseSleepStudy(ABC):
         Returns:
             hyp: ndarray of shape [n_periods]
         """
-        start_time = self.to_internal_period_time(start_time, time_unit)
+        start_time = self._to_internal_period_time(start_time, time_unit)
         start_idx = self.period_time_to_idx(start_time, self.time_unit)
         return self.get_hyp_periods_by_idx(start_idx, n_periods, on_overlapping)
 
@@ -373,7 +399,7 @@ class AbstractBaseSleepStudy(ABC):
             psg: ndarray of shape [n_periods, self.data_per_period, C]
             hyp: ndarray of shape [n_periods] IF self.no_hypnogram is False
         """
-        start_time = self.to_internal_period_time(start_time, time_unit)
+        start_time = self._to_internal_period_time(start_time, time_unit)
         start_idx = self.period_time_to_idx(start_time, self.time_unit)
         return self.get_periods_by_idx(start_idx, n_periods, channel_indices, on_overlapping)
 
