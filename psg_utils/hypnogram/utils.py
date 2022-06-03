@@ -28,7 +28,6 @@ psg_utils operates with the following notation on hypnogram encodings:
 
 import logging
 import math
-
 import numpy as np
 from psg_utils.hypnogram import SparseHypnogram
 from psg_utils.hypnogram.formats import StartDurationStageFormat
