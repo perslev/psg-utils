@@ -350,11 +350,13 @@ class SleepStudy(SubjectDirSleepStudyBase):
         self._set_header_fields(header)
 
         if self.hyp_file_path is not None and not self.no_hypnogram:
-            self._hypnogram, self.annotation_dict = load_hypnogram(self.hyp_file_path,
-                                                                   period_length=self.period_length,
-                                                                   time_unit=self.time_unit,
-                                                                   annotation_dict=self.annotation_dict,
-                                                                   sample_rate=header["sample_rate"])
+            self._hypnogram, self.annotation_dict = load_hypnogram(
+                self.hyp_file_path,
+                period_length=self.get_period_length_in(self.data_time_unit),
+                time_unit=self.data_time_unit,
+                annotation_dict=self.annotation_dict,
+                sample_rate=header["sample_rate"]
+            )
         else:
             self._hypnogram = False
 
