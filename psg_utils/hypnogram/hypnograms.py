@@ -31,7 +31,7 @@ class DenseHypnogram(pd.DataFrame):
     Gaps are not allowed.
     """
     def __init__(self,
-                 dense_init_times: Union[List[int], np.ndarray],
+                 dense_init_times: Union[List[Union[int, float]], np.ndarray],
                  dense_stages: Union[List[int], np.ndarray],
                  time_unit: TimeUnit,
                  internal_time_unit: TimeUnit = TimeUnit.SECOND):
@@ -44,6 +44,9 @@ class DenseHypnogram(pd.DataFrame):
         if np.any(diffs != diffs[0]):
             raise ValueError("Cannot initialize a DenseHypnogram with 'dense_init_times' "
                              "that contain gaps or unequal durations.")
+        if np.any(np.asarray(dense_init_times) < 0):
+            raise ValueError("Cannot initialize a DenseHypnogram with "
+                             "'dense_init_times' that contain negative values.")
 
         # Init the DataFrame base object
         super(DenseHypnogram, self).__init__(data={
@@ -155,12 +158,12 @@ class SparseHypnogram(object):
         """
         Returns the period length in seconds as a float
         """
-        return convert_time(self.period_length, self.time_unit, TimeUnit.SECOND)
+        return float(convert_time(self.period_length, self.time_unit, TimeUnit.SECOND))
 
     @property
     def end_time(self) -> int:
         """ Hypnogram end time in unit self.time_unit """
-        return self.inits[-1] + self.durations[-1]
+        return int(self.inits[-1] + self.durations[-1])  # cast np.int -> int
 
     @property
     def end_time_sec(self) -> float:
@@ -249,7 +252,7 @@ class SparseHypnogram(object):
         time = convert_time(time, time_unit, self.time_unit, cast_to_int=True)
         # Check if time is within bounds of study duration
         if time < 0:
-            raise ValueError("Query time must be >= 0 (got {})".format(time))
+            raise IndexError("Query time must be >= 0 (got {})".format(time))
         if time < self.inits[0]:
             raise IndexError("Query time out of bounds (got time {}, but "
                              "first init time point is {} ({}))".format(time,
@@ -267,7 +270,7 @@ class SparseHypnogram(object):
         if ind == len(self.inits) or self.inits[ind] != time:
             ind -= 1
         assert ind >= 0
-        return ind
+        return int(ind)
 
     def get_period_at_time(self, time: [int, float], time_unit: TimeUnit, on_overlapping: str = "RAISE") -> int:
         """
@@ -321,15 +324,15 @@ class SparseHypnogram(object):
         # Find the stage depending on the requested overlap handling method (see __doc__).
         on_overlapping = on_overlapping.upper()
         if on_overlapping == "FIRST":
-            return stages[0]
+            return int(stages[0])
         elif on_overlapping == "LAST":
-            return stages[-1]
+            return int(stages[-1])
         elif on_overlapping == "MAJORITY":
-            return stages[np.argmax(durations)]
+            return int(stages[np.argmax(durations)])
         elif on_overlapping == "RAISE":
             unique_stages = list(set(stages))  # Allow duplicates
             if len(unique_stages) == 1:
-                return unique_stages[0]
+                return int(unique_stages[0])
             else:
                 raise ValueError(f"Found {len(stages)} overlapping hypnogram annotations within requested period at "
                                  f"time point {time} ({self.time_unit}, period_length={self.period_length}) in period "
@@ -354,7 +357,7 @@ class SparseHypnogram(object):
         Returns:
             (int) The sleep stage integer class at the given time
         """
-        return self.stages[self.get_index_at_time(time, time_unit)]
+        return int(self.stages[self.get_index_at_time(time, time_unit)])
 
     def get_class_durations(self) -> defaultdict:
         """
