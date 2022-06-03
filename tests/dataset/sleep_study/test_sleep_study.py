@@ -1,5 +1,4 @@
 import pytest
-import os
 import numpy as np
 from psg_utils.dataset.sleep_study import SleepStudy
 from psg_utils.io import to_h5_file, to_ids
