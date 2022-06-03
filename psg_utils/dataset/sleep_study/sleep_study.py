@@ -45,6 +45,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
                  period_length: [int, float] = 30,
                  time_unit: Union[TimeUnit, str] = TimeUnit.SECOND,
                  internal_time_unit: Union[TimeUnit, str] = TimeUnit.MILLISECOND,
+                 on_overlapping: str = "RAISE",
                  load=False):
         """
         Initialize a SleepStudy object from PSG/HYP data
@@ -77,6 +78,11 @@ class SleepStudy(SubjectDirSleepStudyBase):
             internal_time_unit (TimeUnit)   TimeUnit object specifying the unit of time to use internally for storing
                                               times. Affects the values returned by methods or attributes such as
                                               self.period_length.
+            on_overlapping:     (str)        One of 'FIRST', 'LAST', 'MAJORITY', , 'RAISE'.
+                                               Controls the behaviour when a discrete period of length
+                                               self.period_length overlaps 2 or more different classes
+                                               in the original hypnogram. See SparseHypnogram.get_period_at_time for
+                                               details.
             load              (bool)        Load the PSG object at init time.
         """
         super(SleepStudy, self).__init__(
@@ -88,7 +94,8 @@ class SleepStudy(SubjectDirSleepStudyBase):
             annotation_dict=annotation_dict,
             period_length=period_length,
             time_unit=time_unit,
-            internal_time_unit=internal_time_unit
+            internal_time_unit=internal_time_unit,
+            on_overlapping=on_overlapping
         )
         # Hidden attributes controlled in property functions to limit setting
         # of these values to the load() function
@@ -362,8 +369,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
 
         if self.strip_func:
             # Strip the data using the passed function on the passed class
-            self._psg, self._hypnogram = apply_strip_func(self,
-                                                          self.org_sample_rate)
+            self._psg, self._hypnogram = apply_strip_func(self, self.org_sample_rate)
         elif self.hypnogram and not assert_equal_length(self.psg,
                                                         self.hypnogram,
                                                         self.org_sample_rate):
@@ -391,7 +397,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         # Store dictionary mapping class integers to period idx of that class
         if self.hypnogram:
             self._class_to_period_dict = create_class_int_to_period_idx_dict(
-                self.hypnogram
+                self.hypnogram, self.on_overlapping
             )
         # Ensure converted to float32 ndarray
         self._psg = self._psg.astype(np.float32)

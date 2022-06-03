@@ -37,7 +37,7 @@ from psg_utils.time_utils import TimeUnit, convert_time
 logger = logging.getLogger(__name__)
 
 
-def create_class_int_to_period_idx_dict(hypnogram):
+def create_class_int_to_period_idx_dict(hypnogram, on_overlapping: str = "RAISE"):
     """
     Takes a SparseHypnogram or DenseHypnogram object and returns a dictionary
     that maps from sleep stage integer labels (typically 0, ..., 5) to numpy
@@ -45,14 +45,18 @@ def create_class_int_to_period_idx_dict(hypnogram):
     within the (dense) hypnogram.
 
     Args:
-        hypnogram: A SparseHypnogram or DenseHypnogram object
+        hypnogram:      A SparseHypnogram or DenseHypnogram object
+        on_overlapping: One of 'FIRST', 'LAST', 'MAJORITY', , 'RAISE'.
+                        Controls the behaviour when a discrete period of length
+                        self.period_length overlaps 2 or more different classes
+                        in the original hypnogram. See SparseHypnogram.get_period_at_time for details.
 
     Returns:
         A dictionary
     """
     classes = hypnogram.classes
     if isinstance(hypnogram, SparseHypnogram):
-        hypnogram = hypnogram.to_dense()
+        hypnogram = hypnogram.to_dense(on_overlapping, dense_time_unit=TimeUnit.MILLISECOND)
     stages = hypnogram["sleep_stage"].to_numpy()
     return {c: np.where(stages == c)[0] for c in classes}
 

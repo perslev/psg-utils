@@ -22,7 +22,8 @@ class AbstractBaseSleepStudy(ABC):
                  no_hypnogram: bool,
                  period_length: [int, float],
                  time_unit: Union[TimeUnit, str],
-                 internal_time_unit: Union[TimeUnit, str]):
+                 internal_time_unit: Union[TimeUnit, str],
+                 on_overlapping: str):
         """
         Args:
            no_hypnogram       (bool)       Initialize without ground truth data.
@@ -32,9 +33,21 @@ class AbstractBaseSleepStudy(ABC):
            internal_time_unit (TimeUnit)   TimeUnit object specifying the unit of time to use internally for storing
                                              times. Affects the values returned by methods or attributes such as
                                              self.period_length.
+           on_overlapping:    (str)        One of 'FIRST', 'LAST', 'MAJORITY', 'RAISE'.
+                                             Controls the behaviour when a discrete period of length self.period_length
+                                             overlaps 2 or more different classes in the original hypnogram.
+                                             See SparseHypnogram.get_period_at_time for details.
         """
         self.annotation_dict = annotation_dict
         self._no_hypnogram = bool(no_hypnogram)
+
+        # Set the on_overlapping property for when/if hypnogram in loaded.
+        # Has no effect if no_hypnogram is True.
+        on_overlapping = on_overlapping.upper()
+        if on_overlapping not in ('FIRST', 'LAST', 'MAJORITY', 'RAISE'):
+            raise ValueError(f"Got unexpected value for parameter 'on_overlapping' ({on_overlapping}). "
+                             f"Expected one of 'FIRST', 'LAST', 'MAJORITY', 'RAISE'.")
+        self.on_overlapping = on_overlapping
 
         # Convert period_length input to an internal integer representation in units 'internal_time_unit' (TimeUnit)
         self._time_unit = standardize_time_input(internal_time_unit)

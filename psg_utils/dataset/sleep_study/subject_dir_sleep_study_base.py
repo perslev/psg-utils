@@ -25,7 +25,8 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy, ABC):
                  annotation_dict=None,
                  period_length: [int, float] = 30,
                  time_unit: Union[TimeUnit, str] = TimeUnit.SECOND,
-                 internal_time_unit: Union[TimeUnit, str] = TimeUnit.MILLISECOND):
+                 internal_time_unit: Union[TimeUnit, str] = TimeUnit.MILLISECOND,
+                 on_overlapping: str = "RAISE"):
         """
         Initialize a SubjectDirSleepStudyBase object from PSG/HYP data
 
@@ -58,13 +59,18 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy, ABC):
            internal_time_unit (TimeUnit)   TimeUnit object specifying the unit of time to use internally for storing
                                            times. Affects the values returned by methods or attributes such as
                                            self.period_length.
+           on_overlapping:    (str)        One of 'FIRST', 'LAST', 'MAJORITY', 'RAISE'. Controls the behaviour when a discrete
+                                             period of length self.period_length overlaps 2 or more different classes
+                                             in the original hypnogram. See SparseHypnogram.get_period_at_time for
+                                             details.
         """
         super(SubjectDirSleepStudyBase, self).__init__(
             annotation_dict=annotation_dict,
             no_hypnogram=no_hypnogram,
             period_length=period_length,
             time_unit=time_unit,
-            internal_time_unit=internal_time_unit
+            internal_time_unit=internal_time_unit,
+            on_overlapping=on_overlapping
         )
         self.subject_dir = os.path.abspath(subject_dir)
         try:
