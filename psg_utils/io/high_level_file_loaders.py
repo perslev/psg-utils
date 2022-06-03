@@ -9,6 +9,7 @@ This file should contain only the following functions:
 
 import logging
 import h5py
+from typing import Union
 from psg_utils.io.psg import extract_psg_data
 from psg_utils.io.hypnogram import extract_hyp_data
 from psg_utils.io.header import extract_header
@@ -95,7 +96,7 @@ def load_psg(psg_file_path,
 
 
 def load_hypnogram(file_path: str,
-                   period_length: int,
+                   period_length: Union[int, float],
                    annotation_dict: dict,
                    sample_rate: int,
                    time_unit: TimeUnit = TimeUnit.SECOND):
@@ -105,7 +106,7 @@ def load_hypnogram(file_path: str,
 
     Args:
         file_path:          (str) A string path pointing to the file to load
-        period_length:      (int) The sleep staging 'epoch' length in unit 'time_unit'
+        period_length:      (int, float) The sleep staging 'epoch' length in unit 'time_unit'
         time_unit:          (TimeUnit) The time unit for 'period_length' and inits/durations in file at 'file_path'
         annotation_dict:    (dict) A dictionary mapping labels as stored in 'file_path' to integer label values.
                             Can be None, in which case a default or automatically inferred
