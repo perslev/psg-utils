@@ -9,6 +9,7 @@ boundaries.
 import logging
 import numpy as np
 from psg_utils.errors import NotLoadedError
+from psg_utils.time_utils import TimeUnit
 
 logger = logging.getLogger(__name__)
 
@@ -124,12 +125,13 @@ def apply_quality_control_func(sleep_study, sample_rate, warn_fraction=0.15, war
                         "set.".format(sleep_study))
     func_str, kwargs = sleep_study.quality_control_func
     f = globals()[func_str]
+    period_length_sec = sleep_study.get_period_length_in(TimeUnit.SECOND)
     psg, inds = f(psg=sleep_study.psg,
                   sample_rate=sample_rate,
-                  period_length_sec=sleep_study.period_length_sec,
+                  period_length_sec=period_length_sec,
                   **kwargs)
     if warn:
-        n_periods = int(psg.shape[0] / (sample_rate * sleep_study.period_length_sec))
+        n_periods = int(psg.shape[0] / (sample_rate * period_length_sec))
         for i, chan_inds in enumerate(inds):
             fraction = len(chan_inds) / n_periods
             warn_str = "Quality control for sample '{}' affected " \
