@@ -17,7 +17,6 @@ from psg_utils.errors import NotLoadedError, StripError
 from psg_utils.time_utils import TimeUnit, convert_time
 
 logger = logging.getLogger(__name__)
-_STRIP_ERR = StripError("Unexpected difference between PSG and HYP lengths.")
 
 
 def _strip(hyp, mask, inits, durs, stages, pop_from_start):
@@ -48,8 +47,8 @@ def strip_class_leading(psg, hyp, class_int, sample_rate, check_lengths=False, *
     remove_mask = np.asarray(hyp.stages) == class_int
     i, d, s = list(hyp.inits), list(hyp.durations), list(hyp.stages)
     _strip(hyp, remove_mask, i, d, s, pop_from_start=True)
-    if check_lengths and not assert_equal_length(psg, hyp, sample_rate):
-        raise _STRIP_ERR
+    if check_lengths:
+        assert_equal_length(psg, hyp, sample_rate)
     return psg, hyp
 
 
@@ -62,8 +61,8 @@ def strip_class_trailing(psg, hyp, class_int, sample_rate, check_lengths=False, 
     remove_mask = np.asarray(hyp.stages) == class_int
     i, d, s = list(hyp.inits), list(hyp.durations), list(hyp.stages)
     _strip(hyp, reversed(remove_mask), i, d, s, pop_from_start=False)
-    if check_lengths and not assert_equal_length(psg, hyp, sample_rate):
-        raise _STRIP_ERR
+    if check_lengths:
+        assert_equal_length(psg, hyp, sample_rate)
     return psg, hyp
 
 
@@ -76,8 +75,8 @@ def strip_class_leading_and_trailing(psg, hyp, class_int, sample_rate, check_len
     """
     strip_class_leading(psg, hyp, class_int, sample_rate)
     strip_class_trailing(psg, hyp, class_int, sample_rate)
-    if check_lengths and not assert_equal_length(psg, hyp, sample_rate):
-        raise _STRIP_ERR
+    if check_lengths:
+        assert_equal_length(psg, hyp, sample_rate)
     return psg, hyp
 
 
@@ -97,8 +96,8 @@ def strip_psg_to_match_hyp_len(psg, hyp, sample_rate, check_lengths=False, **kwa
         return psg
     idx_to_strip = int(sample_rate * diff_sec)
     psg = psg[:-idx_to_strip]
-    if check_lengths and not assert_equal_length(psg, hyp, sample_rate):
-        raise _STRIP_ERR
+    if check_lengths:
+        assert_equal_length(psg, hyp, sample_rate)
     return psg
 
 
@@ -126,8 +125,8 @@ def end_pad_psg(psg, hyp, sample_rate, pad_value=0.0, check_lengths=False, **kwa
                           dtype=psg.dtype)
     padded_psg[:len(psg)] = psg
     padded_psg[len(psg):] = pad_value
-    if check_lengths and not assert_equal_length(padded_psg, hyp, sample_rate):
-        raise _STRIP_ERR
+    if check_lengths:
+        assert_equal_length(psg, hyp, sample_rate)
     return padded_psg
 
 
@@ -147,8 +146,8 @@ def strip_hyp_to_match_psg_len(psg, hyp, sample_rate, check_lengths=False, **kwa
     elif diff_sec == 0:
         return hyp
     hyp.set_new_end_time(hyp.end_time_sec - diff_sec, TimeUnit.SECOND)
-    if check_lengths and not assert_equal_length(psg, hyp, sample_rate):
-        raise _STRIP_ERR
+    if check_lengths:
+        assert_equal_length(psg, hyp, sample_rate)
     return hyp
 
 
@@ -163,8 +162,8 @@ def pad_hyp_to_match_psg_len(psg, hyp, sample_rate, check_lengths=False, **kwarg
     elif diff_sec == 0:
         return hyp
     hyp.set_new_end_time(hyp.end_time_sec + diff_sec, TimeUnit.SECOND)
-    if check_lengths and not assert_equal_length(psg, hyp, sample_rate):
-        raise _STRIP_ERR
+    if check_lengths:
+        assert_equal_length(psg, hyp, sample_rate)
     return hyp
 
 
@@ -191,8 +190,8 @@ def strip_to_match(psg, hyp, sample_rate, class_int=None, check_lengths=False, *
         hyp = strip_hyp_to_match_psg_len(psg, hyp, sample_rate)
     if psg_length_sec > hyp.total_duration_sec:  # Note total_dur_sec. is a property
         hyp = pad_hyp_to_match_psg_len(psg, hyp, sample_rate)
-    if check_lengths and not assert_equal_length(psg, hyp, sample_rate):
-        raise _STRIP_ERR
+    if check_lengths:
+        assert_equal_length(psg, hyp, sample_rate)
     return psg, hyp
 
 
@@ -310,14 +309,8 @@ def drop_class(psg, hyp, class_int, sample_rate,
 
     if call_strip_to_match:
         psg, hyp = strip_to_match(psg, hyp, sample_rate=sample_rate)
-    if check_lengths and not assert_equal_length(psg, hyp, sample_rate):
-        raise StripError("Unexpected difference between PSG length ({} "
-                         "seconds) and HYP length ({} seconds). This error "
-                         "occurred in 'drop_class' strip func on class {} "
-                         "for SleepPair with sample rate:\n{}".format(
-            psg.shape[0] / sample_rate, hyp.total_duration_sec,
-            class_int, sample_rate)
-        )
+    if check_lengths:
+        assert_equal_length(psg, hyp, sample_rate)
     return psg, hyp
 
 
@@ -346,7 +339,11 @@ def trim_psg_trailing(psg, sample_rate, period_length_sec, hyp=None, **kwargs):
 
 def assert_equal_length(psg, hyp, sample_rate):
     """ Return True if the PSG and HYP have equal lengths in seconds """
-    return psg.shape[0] / sample_rate == hyp.total_duration_sec
+    psg_length_sec = psg.shape[0] / sample_rate
+    hyp_length_sec = hyp.total_duration_sec
+    if psg_length_sec != hyp_length_sec:
+        raise StripError(f"Unexpected difference between PSG and HYP lengths. "
+                         f"PSG {psg_length_sec}s != hyp {hyp_length_sec}s")
 
 
 def apply_strip_func(sleep_study, sample_rate):
@@ -375,7 +372,6 @@ def apply_strip_func(sleep_study, sample_rate):
                            **kwargs)
     except StripError as e:
         sleep_study.raise_err(StripError,
-                              "Could not perform strip using {} on class "
-                              "{}. Please investigate "
+                              "Could not perform strip using '{}' strip function. Please investigate "
                               "manually.".format(*sleep_study.strip_func), _from=e)
     return psg, hypnogram
