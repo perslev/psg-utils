@@ -371,7 +371,7 @@ def apply_strip_func(sleep_study, sample_rate):
                            hyp=sleep_study.hypnogram,
                            sample_rate=sample_rate,
                            check_lengths=True,  # Always check in the end
-                           period_length_sec=sleep_study.period_length_sec,
+                           period_length_sec=sleep_study.get_period_length_in(TimeUnit.SECOND),
                            **kwargs)
     except StripError as e:
         sleep_study.raise_err(StripError,
