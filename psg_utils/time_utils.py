@@ -37,9 +37,9 @@ def convert_time(time: [float, int], from_unit: Union[TimeUnit, str], to_unit: U
     factor = to_unit.value / from_unit.value
     converted = time * factor
     if cast_to_int:
-        if not math.isclose(converted, int(converted)):
+        if not math.isclose(converted, round(converted)):
             raise ValueError(f"Cannot safely cast time {time} converted "
                              f"to {converted} ({from_unit} -> {to_unit}) to integer value.")
         else:
-            converted = int(converted)
+            converted = round(converted)
     return converted
