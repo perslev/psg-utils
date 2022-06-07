@@ -230,16 +230,14 @@ class H5SleepStudy(AbstractBaseSleepStudy):
             psg[:, i] = self.psg[chan][data_start_idx:data_end_idx]
         return psg.reshape([n_periods, self.data_per_period, psg.shape[-1]])
 
-    def get_hyp_periods_by_idx(self, start_idx: int, n_periods: int = 1, on_overlapping: str = "RAISE") -> np.ndarray:
+    def get_hyp_periods_by_idx(self, start_idx: int, n_periods: int = 1, on_overlapping: [str, None] = None) -> np.ndarray:
         """
         Returns periods from the hypnogram in shape [n_periods].
 
         Args:
             start_idx (int): Index of first period to return
             n_periods (int): The number of periods to return
-            on_overlapping: str, One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
-                            period of length self.period_length overlaps 2 or more different classes in the
-                            original hypnogram. See SparseHypnogram.get_period_at_time for details.
+            on_overlapping:  Not used
 
         Returns:
             hyp: ndarray of shape [n_periods]

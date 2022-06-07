@@ -123,16 +123,17 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy, ABC):
             psg = psg[:, channel_indices]
         return psg.reshape([n_periods, self.data_per_period, psg.shape[-1]])
 
-    def get_hyp_periods_by_idx(self, start_idx: int, n_periods: int = 1, on_overlapping: str = "RAISE") -> np.ndarray:
+    def get_hyp_periods_by_idx(self, start_idx: int, n_periods: int = 1, on_overlapping: Union[str, None] = None) -> np.ndarray:
         """
         Returns periods from the hypnogram in shape [n_periods].
 
         Args:
-            start_idx (int): Index of first period to return
-            n_periods (int): The number of periods to return
-            on_overlapping: str, One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
-                            period of length self.period_length overlaps 2 or more different classes in the
-                            original hypnogram. See SparseHypnogram.get_period_at_time for details.
+            start_idx (int):              Index of first period to return
+            n_periods (int):              The number of periods to return
+            on_overlapping (str or None): If str one of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a
+                                          discrete period of length self.period_length overlaps 2 or more different
+                                          classes in the original hypnogram. See SparseHypnogram.get_period_at_time
+                                          for details. Default with on_overlapping = None is self.on_overlapping.
 
         Returns:
             hyp: ndarray of shape [n_periods]
@@ -144,7 +145,7 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy, ABC):
             hyp[i] = self.hypnogram.get_period_at_time(
                 time=period_start_time,
                 time_unit=self.time_unit,
-                on_overlapping=on_overlapping
+                on_overlapping=on_overlapping or self.on_overlapping
             )
         return hyp
 

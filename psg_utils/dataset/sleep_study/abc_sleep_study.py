@@ -128,16 +128,17 @@ class AbstractBaseSleepStudy(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_hyp_periods_by_idx(self, start_idx: int, n_periods: int = 1, on_overlapping: str = "RAISE") -> np.ndarray:
+    def get_hyp_periods_by_idx(self, start_idx: int, n_periods: int = 1, on_overlapping: Union[str, None] = None) -> np.ndarray:
         """
         Returns periods from the hypnogram in shape [n_periods].
 
         Args:
             start_idx (int): Index of first period to return
             n_periods (int): The number of periods to return
-            on_overlapping: str, One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
-                            period of length self.period_length overlaps 2 or more different classes in the
-                            original hypnogram. See SparseHypnogram.get_period_at_time for details.
+            on_overlapping: str or None, if str one of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a
+                            discrete period of length self.period_length overlaps 2 or more different classes in the
+                            original hypnogram. See SparseHypnogram.get_period_at_time for details. Default with
+                            on_overlapping = None is self.on_overlapping.
 
         Returns:
             hyp: ndarray of shape [n_periods]
@@ -277,7 +278,7 @@ class AbstractBaseSleepStudy(ABC):
                            start_idx: int,
                            n_periods: int = 1,
                            channel_indices: list = None,
-                           on_overlapping: str = "RAISE") -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+                           on_overlapping: Union[str, None] = None) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Get a range of period of {X, y} data by indices (self.no_hypnogram is False) else {X}
         Period starting at second 0 is index 0.
@@ -286,9 +287,10 @@ class AbstractBaseSleepStudy(ABC):
             start_idx       (int):  Index of first period to return
             n_periods       (int):  The number of periods to return
             channel_indices (list): Optional list of channel indices to extract from PSG. Extracts all with None.
-            on_overlapping: (str):  One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
-                                    period of length self.period_length overlaps 2 or more different classes in the
-                                    original hypnogram. See SparseHypnogram.get_period_at_time for details.
+            on_overlapping: str or None, if str one of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a
+                            discrete period of length self.period_length overlaps 2 or more different classes in the
+                            original hypnogram. See SparseHypnogram.get_period_at_time for details. Default with
+                            on_overlapping = None is self.on_overlapping.
 
         Returns:
             psg: ndarray of shape [n_periods, self.data_per_period, C]
@@ -364,7 +366,7 @@ class AbstractBaseSleepStudy(ABC):
                                 start_time: [int, float],
                                 time_unit: Union[TimeUnit, str],
                                 n_periods: int = 1,
-                                on_overlapping: str = "RAISE") -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+                                on_overlapping: Union[str, None] = None) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Equivalent method to self.get_hyp_periods_by_idx but working in time units instead of period indices.
 
@@ -372,12 +374,13 @@ class AbstractBaseSleepStudy(ABC):
         'start_time' must align exactly with the beginning of a period, otherwise a ValueError is raised.
 
         Args:
-            start_time (int, float):     The time point of the beginning of a period from which to get periods.
-            time_unit: (TimeUnit, str):  Time unit for parameter 'start_time'.
-            n_periods (int):             The number of periods to return
-            on_overlapping: (str):       One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
-                                         period of length self.period_length overlaps 2 or more different classes in the
-                                         original hypnogram. See SparseHypnogram.get_period_at_time for details.
+            start_time (int, float):      The time point of the beginning of a period from which to get periods.
+            time_unit: (TimeUnit, str):   Time unit for parameter 'start_time'.
+            n_periods (int):              The number of periods to return
+            on_overlapping (str or None): If str one of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a
+                                          discrete period of length self.period_length overlaps 2 or more different
+                                          classes in the original hypnogram. See SparseHypnogram.get_period_at_time
+                                          for details. Default with on_overlapping = None is self.on_overlapping.
 
         Returns:
             hyp: ndarray of shape [n_periods]
@@ -439,15 +442,16 @@ class AbstractBaseSleepStudy(ABC):
 
     def get_all_periods(self,
                         channel_indices: list = None,
-                        on_overlapping: str = "RAISE") -> Union[Tuple[np.ndarray, np.ndarray], np.ndarray]:
+                        on_overlapping: [str, None] = None) -> Union[Tuple[np.ndarray, np.ndarray], np.ndarray]:
         """
         Returns the full (dense) data of the SleepStudy
 
         Args:
-            channel_indices (list): Optional list of channel indices to extract from PSG. Extracts all with None.
-            on_overlapping: (str):  One of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a discrete
-                                    period of length self.period_length overlaps 2 or more different classes in the
-                                    original hypnogram. See SparseHypnogram.get_period_at_time for details.
+            channel_indices (list):       Optional list of channel indices to extract from PSG. Extracts all with None.
+            on_overlapping (str or None): If str one of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a
+                                          discrete period of length self.period_length overlaps 2 or more different
+                                          classes in the original hypnogram. See SparseHypnogram.get_period_at_time
+                                          for details. Default with on_overlapping = None is self.on_overlapping.
 
         Returns:
             psg: An ndarray of shape [self.n_periods, self.data_per_period, n_channels]
