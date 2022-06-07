@@ -12,6 +12,7 @@ beyond the other file will normally be discarded (see strip functions below)
 
 import logging
 import numpy as np
+from math import isclose
 from psg_utils.hypnogram import SparseHypnogram
 from psg_utils.errors import NotLoadedError, StripError
 from psg_utils.time_utils import TimeUnit, convert_time
@@ -341,7 +342,7 @@ def assert_equal_length(psg, hyp, sample_rate):
     """ Return True if the PSG and HYP have equal lengths in seconds """
     psg_length_sec = psg.shape[0] / sample_rate
     hyp_length_sec = hyp.total_duration_sec
-    if psg_length_sec != hyp_length_sec:
+    if not isclose(psg_length_sec, hyp_length_sec):
         raise StripError(f"Unexpected difference between PSG and HYP lengths. "
                          f"PSG {psg_length_sec}s != hyp {hyp_length_sec}s")
 
