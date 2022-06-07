@@ -34,7 +34,8 @@ class H5SleepStudy(AbstractBaseSleepStudy):
             no_hypnogram=no_hypnogram,
             period_length=period_length,
             time_unit=time_unit,
-            internal_time_unit=internal_time_unit
+            internal_time_unit=internal_time_unit,
+            on_overlapping="RAISE"  # TODO - not used
         )
         if self.annotation_dict:
             self.annotation_dict = np.vectorize(annotation_dict.get)

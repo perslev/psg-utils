@@ -3,9 +3,11 @@ import os
 import re
 import h5py
 import atexit
+from typing import Union
 from psg_utils.io.channels import RandomChannelSelector
 from psg_utils.dataset.sleep_study_dataset.abc_sleep_study_dataset import AbstractBaseSleepStudyDataset
 from psg_utils.dataset.sleep_study import H5SleepStudy
+from psg_utils.time_utils import TimeUnit
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +17,13 @@ class H5Dataset(AbstractBaseSleepStudyDataset):
                  h5_dataset_obj,
                  identifier=None,
                  annotation_dict=None,
-                 period_length_sec=None,
+                 period_length: [int, float] = 30,
+                 time_unit: Union[TimeUnit, str] = TimeUnit.SECOND,
+                 internal_time_unit: Union[TimeUnit, str] = TimeUnit.MILLISECOND,
                  no_log=False):
         self.h5_dataset_obj = h5_dataset_obj
         super(H5Dataset, self).__init__(
             identifier=identifier or self.h5_dataset_obj.name.lstrip("/"),
-            period_length_sec=period_length_sec,
             no_log=True
         )
         pairs = []
@@ -29,7 +32,9 @@ class H5Dataset(AbstractBaseSleepStudyDataset):
                 pair = H5SleepStudy(
                     self.h5_dataset_obj[pair_id],
                     annotation_dict=annotation_dict,
-                    period_length=self.period_length_sec
+                    period_length=period_length,
+                    time_unit=time_unit,
+                    internal_time_unit=internal_time_unit
                 )
             except KeyError:
                 continue  # missing data, TODO, temp
@@ -107,7 +112,9 @@ class SingleH5Dataset:
 
     def get_datasets(self,
                      load_match_regex=None,
-                     period_length_sec=None,
+                     period_length: [int, float] = 30,
+                     time_unit: Union[TimeUnit, str] = TimeUnit.SECOND,
+                     internal_time_unit: Union[TimeUnit, str] = TimeUnit.MILLISECOND,
                      annotation_dict=None,
                      no_log=False):
         regex = re.compile(load_match_regex or ".*")
@@ -122,7 +129,9 @@ class SingleH5Dataset:
                     h5_dataset_obj=dataset_h5,
                     identifier=dataset_h5.name.lstrip("/"),
                     annotation_dict=annotation_dict,
-                    period_length_sec=period_length_sec,
+                    period_length=period_length,
+                    time_unit=time_unit,
+                    internal_time_unit=internal_time_unit,
                     no_log=no_log
                 ))
         return datasets

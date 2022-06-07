@@ -13,7 +13,6 @@ class AbstractBaseSleepStudyDataset(ABC):
     def __init__(self,
                  identifier,
                  pairs=None,
-                 period_length_sec=None,
                  no_log=False):
         """
         Initialize a SleepStudyDataset from a directory storing one or more
@@ -22,8 +21,6 @@ class AbstractBaseSleepStudyDataset(ABC):
 
         Args:
             pairs: TODO
-            period_length_sec:       (int)    Ground truth segmentation
-                                              period length in seconds.
             identifier:              (string) Dataset ID/name
             no_log:                  (bool)   Do not log dataset details on init
         """
@@ -32,7 +29,6 @@ class AbstractBaseSleepStudyDataset(ABC):
         self._study_identifiers = None
         self._pairs = pairs or []
         self._misc = {}  # May store arbitrary properties for this dataset
-        self.period_length_sec = period_length_sec or Defaults.get_default_period_length()
 
         # Get list of subject folders in the data_dir according to folder_regex
         if len(np.unique([p.identifier for p in self.pairs])) != len(self.pairs):
@@ -45,11 +41,11 @@ class AbstractBaseSleepStudyDataset(ABC):
 
     @abstractmethod
     def __str__(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     @abstractmethod
     def load(self, N=None, random_order=True):
-        raise NotImplemented
+        raise NotImplementedError
 
     def log(self, message=None):
         """ Log basic properties about this dataset """
@@ -59,12 +55,12 @@ class AbstractBaseSleepStudyDataset(ABC):
         logger.info("{} {}".format(id_msg, message))
 
     @property
-    def identifier(self):
+    def identifier(self) -> str:
         """ Returns the dataset ID string """
         return self._identifier
 
     @property
-    def n_loaded(self):
+    def n_loaded(self) -> int:
         """ Returns the number of stored pairs that have data loaded """
         return len(self.loaded_pairs)
 

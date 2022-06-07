@@ -1,8 +1,9 @@
 import logging
-from psg_utils.dataset import SleepStudy
+from typing import Union
 from psg_utils.io.channels import RandomChannelSelector
 from psg_utils.dataset.sleep_study_dataset.subject_dir_sleep_study_dataset_base \
     import SubjectDirSleepStudyDatasetBase
+from psg_utils.time_utils import TimeUnit
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,10 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
                  psg_regex=None,
                  hyp_regex=None,
                  no_labels=False,
-                 period_length_sec=None,
+                 period_length: [int, float] = 30,
+                 time_unit: Union[TimeUnit, str] = TimeUnit.SECOND,
+                 internal_time_unit: Union[TimeUnit, str] = TimeUnit.MILLISECOND,
+                 on_overlapping: str = "RAISE",
                  annotation_dict=None,
                  identifier=None,
                  no_log=False):
@@ -27,32 +31,41 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
         Each sub-dir will be represented by a SleepStudy object.
 
         Args:
-            data_dir:                (string) Path to the data directory
-            folder_regex:            (string) Regex that matches folders to
-                                              consider within the data_dir.
-            psg_regex:               (string) Regex that matches files to
-                                              consider 'PSG' (data) within each
-                                              subject folder.
-                                              Passed to each SleepStudy.
-            hyp_regex:               (string) As psg_regex, but for hypnogram/
-                                              sleep stages/label files.
-                                              Passed to each SleepStudy.
-            period_length_sec:       (int)    Ground truth segmentation
-                                              period length in seconds.
-            annotation_dict:         (dict)   Dictionary mapping labels as
-                                              storred in the hyp files to
-                                              label integer values.
-            identifier:              (string) Dataset ID/name
-            no_log:                  (bool)   Do not log dataset details on init
+            data_dir:                (string)     Path to the data directory
+            folder_regex:            (string)     Regex that matches folders to
+                                                  consider within the data_dir.
+            psg_regex:               (string)     Regex that matches files to
+                                                  consider 'PSG' (data) within each
+                                                  subject folder.
+                                                  Passed to each SleepStudy.
+            hyp_regex:               (string)     As psg_regex, but for hypnogram/
+                                                  sleep stages/label files.
+                                                  Passed to each SleepStudy.
+            period_length            (int/float)  Sleep 'epoch' (segment/period) length in units 'time_unit' (see below)
+            time_unit                (TimeUnit)   TimeUnit object specifying the unit of time of 'period_length'
+            internal_time_unit       (TimeUnit)   TimeUnit object specifying the unit of time to use internally for storing
+                                                  times. Affects the values returned by methods or attributes such as
+                                                  self.period_length.
+            on_overlapping:          (str)        One of 'FIRST', 'LAST', 'MAJORITY', , 'RAISE'.
+                                                  Controls the behaviour when a discrete period of length
+                                                  self.period_length overlaps 2 or more different classes
+                                                  in the original hypnogram. See SparseHypnogram.get_period_at_time for
+                                                  details.
+            annotation_dict:         (dict)       Dictionary mapping labels as storred in the hyp files to
+                                                  label integer values.
+            identifier:              (string)     Dataset ID/name
+            no_log:                  (bool)       Do not log dataset details on init
         """
         super(SleepStudyDataset, self).__init__(
             data_dir=data_dir,
-            sleep_study_class=SleepStudy,
             folder_regex=folder_regex,
             psg_regex=psg_regex,
             hyp_regex=hyp_regex,
             no_labels=no_labels,
-            period_length_sec=period_length_sec,
+            period_length=period_length,
+            time_unit=time_unit,
+            internal_time_unit=internal_time_unit,
+            on_overlapping=on_overlapping,
             annotation_dict=annotation_dict,
             identifier=identifier,
             no_log=no_log
