@@ -148,12 +148,12 @@ class H5SleepStudy(AbstractBaseSleepStudy):
 
     def get_psg_shape(self) -> tuple:
         """
-        TODO
+        Returns the shape of the PSG array as returned by self.get_psg_as_array
 
         Returns:
-
+            tuple, [n_periods * data_per_period, self.n_channels]
         """
-        return tuple(list(self.psg[self.select_channels[0]].shape) + [len(self.psg)])
+        return len(self.psg[self.select_channels[0]]), self.n_channels
 
     def get_psg_as_array(self) -> np.ndarray:
         """
