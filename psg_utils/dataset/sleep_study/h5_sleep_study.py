@@ -122,7 +122,7 @@ class H5SleepStudy(AbstractBaseSleepStudy):
         self._set_loaded_channels(loaded_channels)
         self._hypnogram = np.asarray(self.h5_study_object['hypnogram'])
         self._class_to_period_dict = {str(class_int): np.asarray(class_indices) for class_int, class_indices
-                                      in self.h5_study_object['class_to_index'].values()}
+                                      in self.h5_study_object['class_to_index'].items()}
 
     def unload(self):
         """ Sets the PSG and hypnogram properties to None """
