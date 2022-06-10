@@ -370,13 +370,14 @@ class SleepStudy(SubjectDirSleepStudyBase):
         if self.strip_func:
             # Strip the data using the passed function on the passed class
             self._psg, self._hypnogram = apply_strip_func(self, self.org_sample_rate)
-        elif self.hypnogram and not assert_equal_length(self.psg,
-                                                        self.hypnogram,
-                                                        self.org_sample_rate):
-            self.raise_err(RuntimeError, "PSG and hypnogram are not equally "
-                                         "long in seconds. Consider setting a "
-                                         "strip_function. "
-                                         "See psg_utils.preprocessing.strip_funcs.")
+        elif self.hypnogram:
+            try:
+                assert_equal_length(self.psg, self.hypnogram, self.org_sample_rate)
+            except errors.StripError as e:
+                self.raise_err(RuntimeError, "PSG and hypnogram are not equally "
+                                             "long in seconds. Consider setting a "
+                                             "strip_function. "
+                                             "See psg_utils.preprocessing.strip_funcs.", _from=e)
 
         if self.quality_control_func:
             # Run over epochs and assess if epoch-specific changes should be
