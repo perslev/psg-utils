@@ -2,17 +2,18 @@
 Set of functions for down- and re-sampling of PSG signals
 """
 import logging
+import numpy as np
+from mne.filter import resample
+from scipy.signal import resample_poly
 
 logger = logging.getLogger(__name__)
 
 
 def fourier_resample(psg, new_sample_rate, old_sample_rate):
-    from mne.filter import resample
-    return resample(psg, new_sample_rate, old_sample_rate, axis=0)
+    return resample(psg.astype(np.float64), new_sample_rate, old_sample_rate, axis=0)
 
 
 def poly_resample(psg, new_sample_rate, old_sample_rate):
-    from scipy.signal import resample_poly
     return resample_poly(psg, new_sample_rate, old_sample_rate, axis=0)
 
 
