@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def _strip(hyp, mask, inits, durs, stages, pop_from_start):
     """
-    Helper function for 'strip_class_leading' and 'strip_class_trailing'
+    Helper function for 'strip_class_leading_from_hyp' and 'strip_class_trailing_from_hyp'
     Removes elements from beginning of lists 'inits', 'durs', 'stages'
     according to 'mask' if pop_from_start=True, otherwise from the end of those
     lists.
@@ -39,10 +39,11 @@ def _strip(hyp, mask, inits, durs, stages, pop_from_start):
     hyp.stages = np.array(stages, hyp.stages.dtype)
 
 
-def strip_class_leading(psg, hyp, class_int, sample_rate, check_lengths=False, **kwargs):
+def strip_class_leading_from_hyp(psg, hyp, class_int, sample_rate, check_lengths=False, **kwargs):
     """
     Remove stage 'class_int' events from start and/or end of hypnogram
-    Typically applied in 'strip_class_leading_and_trailing'
+    OBS: Does not touch the PSG
+    Typically applied in 'strip_class_leading_and_trailing_from_hyp'
     See drop_class function for argument description.
     """
     remove_mask = np.asarray(hyp.stages) == class_int
@@ -53,10 +54,11 @@ def strip_class_leading(psg, hyp, class_int, sample_rate, check_lengths=False, *
     return psg, hyp
 
 
-def strip_class_trailing(psg, hyp, class_int, sample_rate, check_lengths=False, **kwargs):
+def strip_class_trailing_from_hyp(psg, hyp, class_int, sample_rate, check_lengths=False, **kwargs):
     """
     Remove stage 'class_int' events from the end of hypnogram
-    Typically applied in 'strip_class_leading_and_trailing'
+    OBS: Does not touch the PSG
+    Typically applied in 'strip_class_leading_and_trailing_from_hyp'
     See drop_class function for argument description.
     """
     remove_mask = np.asarray(hyp.stages) == class_int
@@ -67,15 +69,41 @@ def strip_class_trailing(psg, hyp, class_int, sample_rate, check_lengths=False, 
     return psg, hyp
 
 
-def strip_class_leading_and_trailing(psg, hyp, class_int, sample_rate, check_lengths=False, **kwargs):
+def strip_offset(psg, hyp, class_int, sample_rate, check_lengths=False, **kwargs):
+    """
+    Remove a stage leading 'class_int' stage from both PSG and HYP
+    """
+    if not hyp.is_compact:
+        hyp.make_compact()
+    if hyp.stages[0] == class_int:
+        # Get offset second
+        offset_sec = convert_time(hyp.inits[1], hyp.time_unit, TimeUnit.SECOND)
+
+        # Remove offset from inits (in org units
+        hyp.inits -= hyp.inits[1]
+
+        # Remove stage from hypnogram
+        hyp.inits = hyp.inits[1:]
+        hyp.durations = hyp.durations[1:]
+        hyp.stages = hyp.stages[1:]
+
+        # Trim PSG
+        n_trim = int(offset_sec * sample_rate)
+        psg = psg[n_trim:]
+    if check_lengths:
+        assert_equal_length(psg, hyp, sample_rate)
+    return psg, hyp
+
+
+def strip_class_leading_and_trailing_from_hyp(psg, hyp, class_int, sample_rate, check_lengths=False, **kwargs):
     """
     Drops a class 'class_int' from the head and tail of a hypnogram file.
     Does not strip the PSG or HYP further. If this function is applied alone,
     the PSG and HYP lengths should precisely match after dropping the class
     See drop_class function for argument description.
     """
-    strip_class_leading(psg, hyp, class_int, sample_rate)
-    strip_class_trailing(psg, hyp, class_int, sample_rate)
+    strip_class_leading_from_hyp(psg, hyp, class_int, sample_rate)
+    strip_class_trailing_from_hyp(psg, hyp, class_int, sample_rate)
     if check_lengths:
         assert_equal_length(psg, hyp, sample_rate)
     return psg, hyp
@@ -174,9 +202,9 @@ def strip_to_match(psg, hyp, sample_rate, class_int=None, check_lengths=False, *
       1) If a class_int is passed and if the hypnogram is longest, attempt
          to match by removing the class_int stages from the end of the
          hypnogram
-      2) If a class_int is passed and the hypnogram does not start at init time 0,
-         drop any potential LEADING 'class_int' segments (e.g., to remove auto-inserted UNKNWON stages
-         with non-zero inits, see SparseHypnogram class).
+      2) If a class_int is passed and the hypnograms first stage == class_int,
+         drop this LEADING 'class_int' segment (e.g., to remove auto-inserted UNKNOWN stages
+         with non-zero inits, see SparseHypnogram class) from HYP and corresponding length of PSG.
       3) Strip PSG to a length divisible by 30 seconds * SR and set new HYP endpoint to match
       4) If the hypnogram is longest, reduce the length of the hypnogram
       5) If the PSG is longest, pad the hypnogram with UNKNOWN class to match
@@ -186,10 +214,10 @@ def strip_to_match(psg, hyp, sample_rate, class_int=None, check_lengths=False, *
     psg_length_sec = psg.shape[0] / sample_rate
     if class_int and hyp.total_duration_sec > psg_length_sec:
         # Remove trailing class integer, e.g., UNKNOWN
-        strip_class_trailing(psg, hyp, class_int, sample_rate)
+        psg, hyp = strip_class_trailing_from_hyp(psg, hyp, class_int, sample_rate)
     if class_int and hyp.stages[0] == class_int:
         # Remove leading 'class_int' class, e.g., UNKNOWN
-        strip_class_leading(psg, hyp, class_int, sample_rate)
+        psg, hyp = strip_offset(psg, hyp, class_int, sample_rate, False)
     # Trim PSG first to ensure length divisible by period_length*sample_rate
     psg, _ = trim_psg_trailing(psg, sample_rate, hyp.period_length_sec)
     psg_length_sec = psg.shape[0] / sample_rate
