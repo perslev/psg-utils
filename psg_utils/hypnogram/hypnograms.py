@@ -123,6 +123,10 @@ class SparseHypnogram(object):
             raise ValueError("One or more durations in hypnogram are of length 0. "
                              "All segments of stages must have a positive duration.")
 
+        # Make compact representation where contiguous identical stages are merged into one longer
+        # OBS: Must call this after checking for gaps with hyp_has_gaps.
+        self.make_compact()
+
     def __str__(self):
         return "SparseHypnogram(start={}, end={}, " \
                "length={}, stages={}, period_length={}, time_unit={})".format(
@@ -203,6 +207,35 @@ class SparseHypnogram(object):
         Returns the total duration in TimeUnit.SECOND as a float.
         """
         return convert_time(self.total_duration, self.time_unit, TimeUnit.SECOND)
+
+    @property
+    def is_compact(self) -> bool:
+        """
+        Returns whether the current hypnogram is 'compact', i.e., there are no duplicate contiguous identical stages
+
+        Returns:
+            bool, Whether the SparseHypnogram is current 'compact' or not.
+        """
+        return not np.any(np.diff(self.stages.astype(np.int32)) == 0)
+
+    def make_compact(self):
+        """
+        Squeezes the current hypnogram in place so that consecutive similar stages are merged
+        into single, longer stages
+
+        OBS: Hypnogram must not have gaps for this to function as expected
+
+        Returns:
+            SparseHypnogram, self
+        """
+        if not self.is_compact:
+            from psg_utils.hypnogram.utils import squeeze_events, hyp_has_gaps
+            if hyp_has_gaps(self.inits, self.durations):
+                raise ValueError("Cannot call SparseHypnogram.make_compact on hypnogram that contains gaps.")
+            self.inits, self.durations, self.stages = map(np.asarray,
+                                                          squeeze_events(self.inits, self.durations, self.stages))
+        assert self.is_compact
+        return self
 
     def _extend_end_time(self, new_end_time: int):
         length_diff = new_end_time - self.end_time
