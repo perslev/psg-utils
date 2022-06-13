@@ -174,9 +174,12 @@ def strip_to_match(psg, hyp, sample_rate, class_int=None, check_lengths=False, *
       1) If a class_int is passed and if the hypnogram is longest, attempt
          to match by removing the class_int stages from the end of the
          hypnogram
-      2) Strip PSG to a length divisible by 30 seconds * SR and set new HYP endpoint to match
-      3) If the hypnogram is longest, reduce the length of the hypnogram
-      4) If the PSG is longest, pad the hypnogram with UNKNOWN class to match
+      2) If a class_int is passed and the hypnogram does not start at init time 0,
+         drop any potential LEADING 'class_int' segments (e.g., to remove auto-inserted UNKNWON stages
+         with non-zero inits, see SparseHypnogram class).
+      3) Strip PSG to a length divisible by 30 seconds * SR and set new HYP endpoint to match
+      4) If the hypnogram is longest, reduce the length of the hypnogram
+      5) If the PSG is longest, pad the hypnogram with UNKNOWN class to match
 
     See drop_class function for argument description.
     """
@@ -184,7 +187,7 @@ def strip_to_match(psg, hyp, sample_rate, class_int=None, check_lengths=False, *
     if class_int and hyp.total_duration_sec > psg_length_sec:
         # Remove trailing class integer, e.g., UNKNOWN
         strip_class_trailing(psg, hyp, class_int, sample_rate)
-    if class_int and hyp.inits[0] != 0:
+    if class_int and hyp.stages[0] == class_int:
         # Remove leading 'class_int' class, e.g., UNKNOWN
         strip_class_leading(psg, hyp, class_int, sample_rate)
     # Trim PSG first to ensure length divisible by period_length*sample_rate
