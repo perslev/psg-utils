@@ -204,3 +204,23 @@ class TestSparseHypnogram:
         dense = hyp.to_dense(on_overlapping='FIRST', dense_time_unit=TimeUnit.MICROSECOND)
         assert np.all(dense['period_init_time'].values == [0, 1500000, 3000000, 4500000, 6000000, 7500000, 9000000])
         assert np.all(dense['sleep_stage'].values == [0, 0, 3, 3, 1, 1, 4])
+
+    def test_is_compact(self, hyp):
+        assert hyp.is_compact
+        hyp.stages[1] = hyp.stages[0]
+        assert not hyp.is_compact
+
+    def test_make_compact(self, hyp):
+        assert hyp.is_compact
+        hyp.stages[1] = hyp.stages[0]
+        hyp.make_compact()
+        assert hyp.is_compact
+        assert np.all(hyp.stages == [0, 1, 4])
+        assert np.all(hyp.inits == [0, 5000, 9000])
+        assert np.all(hyp.durations == [5000, 4000, 1000])
+
+        with pytest.raises(ValueError):
+            # Should raise ValueError on gaps
+            hyp.stages[1] = hyp.stages[0]  # make non compact again (otherwise make_compact has no effect)
+            hyp.inits[1] += 1  # insert gap
+            hyp.make_compact()
