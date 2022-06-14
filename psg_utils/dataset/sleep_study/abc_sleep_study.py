@@ -428,7 +428,7 @@ class AbstractBaseSleepStudy(ABC):
         """
         return self.get_psg_periods_by_idx(0, self.n_periods, channel_indices)
 
-    def get_all_hypnogram_periods(self, on_overlapping: str = "RAISE") -> np.ndarray:
+    def get_all_hypnogram_periods(self, on_overlapping: [str, None] = None) -> np.ndarray:
         """
         Returns the full hypnogram in periods, i.e., shape [self.n_periods]
 
