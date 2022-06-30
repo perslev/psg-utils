@@ -237,8 +237,9 @@ class AbstractBaseSleepStudy(ABC):
     def n_sample_channels(self) -> int:
         """
         Overwritten in some derived classes that sample channels on-access
+        Always returns int >=1, even if self.n_channels returns 0
         """
-        return self.n_channels
+        return self.n_channels or 1
 
     def period_idx_to_time(self, period_idx: int) -> int:
         """
