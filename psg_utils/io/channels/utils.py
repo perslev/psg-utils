@@ -1,5 +1,6 @@
 import logging
 import warnings
+from itertools import product
 from psg_utils.io.channels import ChannelMontageTuple, ChannelMontageCreator
 from psg_utils.errors import ChannelNotFoundError, DuplicateChannelError, DuplicateChannelWarning
 
@@ -96,3 +97,15 @@ def get_org_include_exclude_channel_montages(load_channels, header,
     exclude_channels = [c for c in channels_in_file if c not in include_channels]
     exclude_channels = ChannelMontageTuple(exclude_channels)
     return channels_in_file, include_channels, exclude_channels, channel_montage_creator
+
+
+def get_channel_group_combinations(*channel_groups, remove_unordered_duplicates=False):
+    """
+    TODO
+    """
+    combinations = list(product(*channel_groups))
+    if remove_unordered_duplicates:
+        # Remove entries that are duplicates after sorting of each channel combination tuple
+        # I.e., with combinations [['EEG 1', 'EEG 2'], ['EEG 2', 'EEG 1'], ...] return -> [['EEG 1', 'EEG 2'], ...]
+        combinations = list(set(tuple(tuple(sorted(l)) for l in combinations)))
+    return combinations
