@@ -107,5 +107,12 @@ def get_channel_group_combinations(*channel_groups, remove_unordered_duplicates=
     if remove_unordered_duplicates:
         # Remove entries that are duplicates after sorting of each channel combination tuple
         # I.e., with combinations [['EEG 1', 'EEG 2'], ['EEG 2', 'EEG 1'], ...] return -> [['EEG 1', 'EEG 2'], ...]
-        combinations = list(set(tuple(tuple(sorted(l)) for l in combinations)))
+        combs_no_dups = []
+        sorted_combs = []
+        for combination in combinations:
+            sorted_comb = sorted(combination)
+            if tuple(sorted_comb) not in sorted_combs:
+                combs_no_dups.append(combination)
+                sorted_combs.append(tuple(sorted_comb))
+        combinations = combs_no_dups
     return combinations
