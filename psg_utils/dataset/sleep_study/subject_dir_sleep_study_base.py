@@ -5,22 +5,28 @@ Implements the SleepStudyBase class which represents a sleep study (PSG)
 import logging
 import os
 import numpy as np
+from abc import ABC
+from typing import Tuple, Union
 from psg_utils import Defaults
 from psg_utils.dataset.utils import find_psg_and_hyp
 from psg_utils.dataset.sleep_study.abc_sleep_study import AbstractBaseSleepStudy
+from psg_utils.time_utils import TimeUnit
 
 logger = logging.getLogger(__name__)
 
 
-class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
+class SubjectDirSleepStudyBase(AbstractBaseSleepStudy, ABC):
     def __init__(self,
                  subject_dir,
                  psg_regex=None,
                  hyp_regex=None,
                  header_regex=None,
-                 period_length_sec=None,
                  no_hypnogram=None,
-                 annotation_dict=None):
+                 annotation_dict=None,
+                 period_length: [int, float] = 30,
+                 time_unit: Union[TimeUnit, str] = TimeUnit.SECOND,
+                 internal_time_unit: Union[TimeUnit, str] = TimeUnit.MILLISECOND,
+                 on_overlapping: str = "RAISE"):
         """
         Initialize a SubjectDirSleepStudyBase object from PSG/HYP data
 
@@ -38,23 +44,33 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
         'subject_dir'.
 
         Args:
-            subject_dir:      (str)    File path to a directory storing the
-                                       subject data.
-            psg_regex:        (str)    Optional regex used to select PSG file
-            hyp_regex:        (str)    Optional regex used to select HYP file
-            header_regex:     (str)    Optional regex used to select a header file
-                                       OBS: Rarely used as most formats store headers internally, or
-                                            have header paths which are inferrable from the psg_path.
-            period_length_sec (int)    Sleep 'epoch' (segment/period) length in
-                                       seconds
-            no_hypnogram      (bool)   Initialize without ground truth data.
-            annotation_dict   (dict)   A dictionary mapping from labels in the
-                                       hyp_file_path file to integers
+            subject_dir:      (str)        File path to a directory storing the
+                                             subject data.
+            psg_regex:        (str)        Optional regex used to select PSG file
+            hyp_regex:        (str)        Optional regex used to select HYP file
+            header_regex:     (str)        Optional regex used to select a header file
+                                           OBS: Rarely used as most formats store headers internally, or
+                                             have header paths which are inferrable from the psg_path.
+            no_hypnogram      (bool)       Initialize without ground truth data.
+            annotation_dict   (dict)       A dictionary mapping from labels in the
+                                           hyp_file_path file to integers
+           period_length      (int/float)  Sleep 'epoch' (segment/period) length in units 'time_unit' (see below)
+           time_unit          (TimeUnit)   TimeUnit object specifying the unit of time of 'period_length'
+           internal_time_unit (TimeUnit)   TimeUnit object specifying the unit of time to use internally for storing
+                                           times. Affects the values returned by methods or attributes such as
+                                           self.period_length.
+           on_overlapping:    (str)        One of 'FIRST', 'LAST', 'MAJORITY', 'RAISE'. Controls the behaviour when a discrete
+                                             period of length self.period_length overlaps 2 or more different classes
+                                             in the original hypnogram. See SparseHypnogram.get_period_at_time for
+                                             details.
         """
         super(SubjectDirSleepStudyBase, self).__init__(
             annotation_dict=annotation_dict,
-            period_length_sec=period_length_sec,
-            no_hypnogram=no_hypnogram
+            no_hypnogram=no_hypnogram,
+            period_length=period_length,
+            time_unit=time_unit,
+            internal_time_unit=internal_time_unit,
+            on_overlapping=on_overlapping
         )
         self.subject_dir = os.path.abspath(subject_dir)
         try:
@@ -75,7 +91,7 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
         self.header_file_path = header  # OBS: Most often None
 
     @property
-    def identifier(self):
+    def identifier(self) -> str:
         """
         Returns an ID, which is simply the name of the directory storing
         the data
@@ -83,95 +99,58 @@ class SubjectDirSleepStudyBase(AbstractBaseSleepStudy):
         return os.path.split(self.subject_dir)[-1]
 
     @property
-    def n_classes(self):
+    def n_classes(self) -> int:
         """ Returns the number of classes represented in the hypnogram """
         return self.hypnogram.n_classes
 
-    @property
-    def recording_length_sec(self):
-        """ Returns the total length (in seconds) of the PSG recording """
-        return self.get_psg_shape()[0] / self.sample_rate
-
-    def get_full_hypnogram(self):
+    def get_psg_periods_by_idx(self, start_idx: int, n_periods: int = 1, channel_indices: list = None) -> np.ndarray:
         """
-        Returns the full (dense) hypnogram
-
-        Returns:
-            An ndarray of shape [self.n_periods, 1] of class labels
-        """
-        return self.hypnogram.to_dense()["sleep_stage"].to_numpy().reshape(-1, 1)
-
-    def get_periods_by_idx(self, start_idx, end_idx):
-        """
-        Get a range of period of {X, y} data by indices
-        Period starting at second 0 is index 0.
-
-        Returns [N periods = end_idx - start_idx + 1] periods
+        Returns periods from the PSG in shape [n_periods, self.data_per_period, n_channels].
 
         Args:
-            start_idx (int): Index of first period to return
-            end_idx   (int): Index of last period to return (inclusive)
+            start_idx (int):        Index of first period to return
+            n_periods (int):        The number of periods to return
+            channel_indices (list): Optional list of channel indices to extract from PSG. Extracts all with None.
 
         Returns:
-            X: ndarray of shape [N periods, self.data_per_period, C]
-            y: ndarray of shape [N periods, 1]
+            psg: ndarray of shape [n_periods, self.data_per_period, n_channels]
         """
-        indices = list(range(start_idx, end_idx+1))
-        x = np.empty(shape=[len(indices), self.data_per_period, len(self.select_channels)],
-                     dtype=Defaults.PSG_DTYPE)
-        y = np.empty(shape=[len(indices), 1], dtype=Defaults.HYP_DTYPE)
-        for i, idx in enumerate(indices):
-            x_period, y_period = self.get_period_by_idx(idx)
-            x[i] = x_period
-            y[i] = y_period
-        return x, y
+        self._assert_period_index_bounds(start_idx + n_periods - 1)
+        data_start_idx = start_idx * self.data_per_period
+        data_end_idx = data_start_idx + (self.data_per_period * n_periods)
+        psg = self.psg[data_start_idx:data_end_idx]
+        if channel_indices is not None:
+            psg = psg[:, channel_indices]
+        return psg.reshape([n_periods, self.data_per_period, psg.shape[-1]])
 
-    def get_psg_period_at_sec(self, second):
+    def get_hyp_periods_by_idx(self, start_idx: int, n_periods: int = 1, on_overlapping: Union[str, None] = None) -> np.ndarray:
         """
-        Get PSG period starting at second 'second'.
-
-        Returns:
-            X: An ndarray of shape [self.data_per_period, self.n_channels]
-        """
-        if second % self.period_length_sec:
-            raise ValueError("Invalid second of {}, not divisible by period "
-                             "length of {} "
-                             "seconds".format(second, self.period_length_sec))
-        return self.extract_from_psg(start=second,
-                                     end=second+self.period_length_sec)
-
-    def get_stage_at_sec(self, second):
-        """
-        TODO
+        Returns periods from the hypnogram in shape [n_periods].
 
         Args:
-            second:
+            start_idx (int):              Index of first period to return
+            n_periods (int):              The number of periods to return
+            on_overlapping (str or None): If str one of 'FIRST', 'LAST', 'MAJORITY'. Controls the behaviour when a
+                                          discrete period of length self.period_length overlaps 2 or more different
+                                          classes in the original hypnogram. See SparseHypnogram.get_period_at_time
+                                          for details. Default with on_overlapping = None is self.on_overlapping.
 
         Returns:
-
+            hyp: ndarray of shape [n_periods]
         """
-        return self.hypnogram.get_stage_at_sec(second)
+        self._assert_period_index_bounds(start_idx + n_periods - 1)
+        hyp = np.empty(shape=[n_periods], dtype=Defaults.HYP_DTYPE)
+        for i, idx in enumerate(range(start_idx, start_idx+n_periods)):
+            period_start_time = self.period_idx_to_time(idx)
+            hyp[i] = self.hypnogram.get_period_at_time(
+                time=period_start_time,
+                time_unit=self.time_unit,
+                on_overlapping=on_overlapping or self.on_overlapping
+            )
+        return hyp
 
-    def get_all_periods(self):
+    def get_psg_as_array(self):
         """
-        Returns the full (dense) data of the SleepStudy
-
-        Returns:
-            X: An ndarray of shape [self.n_periods,
-                                    self.data_per_period,
-                                    self.n_channels]
-            y: An ndarray of shape [self.n_periods, 1]
+        Returns the PSG stored in self.psg as a single, flat ndarray of shape [-1, n_channels]
         """
-        X = self.get_full_psg().reshape(-1, self.data_per_period, self.n_channels)
-        if self.no_hypnogram:
-            return X
-        y = self.get_full_hypnogram()
-        if len(X) != len(y):
-            err_msg = ("Length of PSG array does not match length dense "
-                       "hypnogram array ({} != {}). If hypnogram "
-                       "is longer, consider if a trailing or leading "
-                       "sleep stage should be removed. (you may use "
-                       "SleepStudyDataset.set_hyp_strip_func())".format(len(X),
-                                                                        len(y)))
-            self.raise_err(ValueError, err_msg)
-        return X, y
+        return self.psg  # Already an ndarray of the correct shape

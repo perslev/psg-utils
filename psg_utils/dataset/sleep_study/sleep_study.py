@@ -4,6 +4,7 @@ Implements the SleepStudy class which represents a sleep study (PSG)
 
 import logging
 import numpy as np
+from typing import Union, Tuple
 from psg_utils import errors
 from psg_utils.io.channels import RandomChannelSelector
 from psg_utils.io.high_level_file_loaders import load_psg, load_hypnogram
@@ -13,6 +14,7 @@ from psg_utils.preprocessing import (apply_scaling, strip_funcs, apply_strip_fun
                                       apply_quality_control_func)
 from psg_utils.hypnogram.utils import create_class_int_to_period_idx_dict
 from psg_utils.dataset.sleep_study.subject_dir_sleep_study_base import SubjectDirSleepStudyBase
+from psg_utils.time_utils import TimeUnit
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +40,12 @@ class SleepStudy(SubjectDirSleepStudyBase):
                  psg_regex=None,
                  hyp_regex=None,
                  header_regex=None,
-                 period_length_sec=None,
                  no_hypnogram=None,
                  annotation_dict=None,
+                 period_length: [int, float] = 30,
+                 time_unit: Union[TimeUnit, str] = TimeUnit.SECOND,
+                 internal_time_unit: Union[TimeUnit, str] = TimeUnit.MILLISECOND,
+                 on_overlapping: str = "RAISE",
                  load=False):
         """
         Initialize a SleepStudy object from PSG/HYP data
@@ -59,28 +64,38 @@ class SleepStudy(SubjectDirSleepStudyBase):
         'subject_dir'.
 
         Args:
-            subject_dir:      (str)    File path to a directory storing the
-                                       subject data.
-            psg_regex:        (str)    Optional regex used to select PSG file
-            hyp_regex:        (str)    Optional regex used to select HYP file
-            header_regex:     (str)    Optional regex used to select a header file
-                                       OBS: Rarely used as most formats store headers internally, or
-                                        have header paths which are inferrable from the psg_path.
-            period_length_sec (int)    Sleep 'epoch' (segment/period) length in
-                                       seconds
-            no_hypnogram      (bool)   Initialize without ground truth data.
-            annotation_dict   (dict)   A dictionary mapping from labels in the
-                                       hyp_file_path file to integers
-            load              (bool)   Load the PSG object at init time.
+            subject_dir:      (str)         File path to a directory storing the
+                                              subject data.
+            psg_regex:        (str)         Optional regex used to select PSG file
+            hyp_regex:        (str)         Optional regex used to select HYP file
+            header_regex:     (str)         Optional regex used to select a header file
+                                            OBS: Rarely used as most formats store headers internally, or
+                                              have header paths which are inferrable from the psg_path.
+            no_hypnogram      (bool)        Initialize without ground truth data.
+            annotation_dict   (dict)        A dictionary mapping from labels in the hyp_file_path file to integers
+            period_length      (int/float)  Sleep 'epoch' (segment/period) length in units 'time_unit' (see below)
+            time_unit          (TimeUnit)   TimeUnit object specifying the unit of time of 'period_length'
+            internal_time_unit (TimeUnit)   TimeUnit object specifying the unit of time to use internally for storing
+                                              times. Affects the values returned by methods or attributes such as
+                                              self.period_length.
+            on_overlapping:     (str)        One of 'FIRST', 'LAST', 'MAJORITY', , 'RAISE'.
+                                               Controls the behaviour when a discrete period of length
+                                               self.period_length overlaps 2 or more different classes
+                                               in the original hypnogram. See SparseHypnogram.get_period_at_time for
+                                               details.
+            load              (bool)        Load the PSG object at init time.
         """
         super(SleepStudy, self).__init__(
             subject_dir=subject_dir,
             psg_regex=psg_regex,
             hyp_regex=hyp_regex,
             header_regex=header_regex,
-            period_length_sec=period_length_sec,
             no_hypnogram=no_hypnogram,
-            annotation_dict=annotation_dict
+            annotation_dict=annotation_dict,
+            period_length=period_length,
+            time_unit=time_unit,
+            internal_time_unit=internal_time_unit,
+            on_overlapping=on_overlapping
         )
         # Hidden attributes controlled in property functions to limit setting
         # of these values to the load() function
@@ -118,7 +133,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
                                                              self.identifier)
 
     @property
-    def class_to_period_dict(self):
+    def class_to_period_dict(self) -> dict:
         """
         Returns the class_to_period_dict, which maps a class integer
         (such as 0) to an array of period indices that correspond to PSG
@@ -128,7 +143,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         return self._class_to_period_dict
 
     @property
-    def load_time_random_channel_selector(self):
+    def load_time_random_channel_selector(self) -> Union[RandomChannelSelector, None]:
         """
         TODO
 
@@ -160,12 +175,12 @@ class SleepStudy(SubjectDirSleepStudyBase):
         self._load_time_random_channel_selector = channel_selector
 
     @property
-    def sample_rate(self):
+    def sample_rate(self) -> int:
         """ Returns the currently set sample rate """
         return self._sample_rate
 
     @sample_rate.setter
-    def sample_rate(self, sample_rate):
+    def sample_rate(self, sample_rate: int):
         """
         Set a new sample rate
         Is considered at load-time
@@ -180,7 +195,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
             self.reload(warning=True)
 
     @property
-    def org_sample_rate(self):
+    def org_sample_rate(self) -> int:
         """
         Returns the original sample rate
         """
@@ -192,12 +207,12 @@ class SleepStudy(SubjectDirSleepStudyBase):
         return self._date
 
     @property
-    def scaler(self):
+    def scaler(self) -> Union[str, None]:
         """ Returns the scaler type (string), see setter method """
         return self._scaler
 
     @scaler.setter
-    def scaler(self, scaler):
+    def scaler(self, scaler: str):
         """
         Sets a scaler type.
         Is considered at load-time
@@ -218,14 +233,14 @@ class SleepStudy(SubjectDirSleepStudyBase):
         return self._scaler_obj
 
     @property
-    def strip_func(self):
+    def strip_func(self) -> Union[None, Tuple[str, dict]]:
         """
         See setter method
         strip_func - when set - is a 2-tuple (strip_func_name, kwargs)
         """
         return self._strip_func
 
-    def set_strip_func(self, strip_func_str, **kwargs):
+    def set_strip_func(self, strip_func_str: str, **kwargs):
         """
         Sets a strip function. Strip functions are applied to the PSG/HYP pair
         at load time and may deal with minor differences between the length
@@ -248,22 +263,22 @@ class SleepStudy(SubjectDirSleepStudyBase):
             self.reload(warning=True)
 
     @property
-    def quality_control_func(self):
+    def quality_control_func(self) -> Union[None, Tuple[str, dict]]:
         """ See setter method """
         return self._quality_control_func
 
-    def set_quality_control_func(self, quality_control_func, **kwargs):
+    def set_quality_control_func(self, quality_control_func: str, **kwargs):
         """
         Sets a quality control function which is applied to all segments
-        of a PSG (as determined by self.period_length_sec) and may alter the
+        of a PSG (as determined by self.period_length) and may alter the
         values of said segments.
 
         Applies at load-time, forces a reload if self.loaded == True.
 
         Args:
-            qc_func:  A string naming a quality control function in:
-                      psg_utils.preprocessing.quality_control_funcs
-            **kwargs: Parameters passed to the quality control func at load
+            quality_control_func:  A string naming a quality control function in:
+                                   psg_utils.preprocessing.quality_control_funcs
+            **kwargs:              Parameters passed to the quality control func at load
         """
         if quality_control_func not in quality_control_funcs.__dict__:
             self.raise_err(ValueError, "Invalid quality control function "
@@ -273,7 +288,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
             self.reload(warning=True)
 
     @property
-    def loaded(self):
+    def loaded(self) -> bool:
         """
         Returns whether the SleepStudy data is currently loaded or not
         """
@@ -342,25 +357,27 @@ class SleepStudy(SubjectDirSleepStudyBase):
         self._set_header_fields(header)
 
         if self.hyp_file_path is not None and not self.no_hypnogram:
-            self._hypnogram, \
-            self.annotation_dict = load_hypnogram(self.hyp_file_path,
-                                                  period_length_sec=self.period_length_sec,
-                                                  annotation_dict=self.annotation_dict,
-                                                  sample_rate=header["sample_rate"])
+            self._hypnogram, self.annotation_dict = load_hypnogram(
+                self.hyp_file_path,
+                period_length=self.get_period_length_in(self.data_time_unit),
+                time_unit=self.data_time_unit,
+                annotation_dict=self.annotation_dict,
+                sample_rate=header["sample_rate"]
+            )
         else:
             self._hypnogram = False
 
         if self.strip_func:
             # Strip the data using the passed function on the passed class
-            self._psg, self._hypnogram = apply_strip_func(self,
-                                                          self.org_sample_rate)
-        elif self.hypnogram and not assert_equal_length(self.psg,
-                                                        self.hypnogram,
-                                                        self.org_sample_rate):
-            self.raise_err(RuntimeError, "PSG and hypnogram are not equally "
-                                         "long in seconds. Consider setting a "
-                                         "strip_function. "
-                                         "See psg_utils.preprocessing.strip_funcs.")
+            self._psg, self._hypnogram = apply_strip_func(self, self.org_sample_rate)
+        elif self.hypnogram:
+            try:
+                assert_equal_length(self.psg, self.hypnogram, self.org_sample_rate)
+            except errors.StripError as e:
+                self.raise_err(RuntimeError, "PSG and hypnogram are not equally "
+                                             "long in seconds. Consider setting a "
+                                             "strip_function. "
+                                             "See psg_utils.preprocessing.strip_funcs.", _from=e)
 
         if self.quality_control_func:
             # Run over epochs and assess if epoch-specific changes should be
@@ -381,13 +398,13 @@ class SleepStudy(SubjectDirSleepStudyBase):
         # Store dictionary mapping class integers to period idx of that class
         if self.hypnogram:
             self._class_to_period_dict = create_class_int_to_period_idx_dict(
-                self.hypnogram
+                self.hypnogram, self.on_overlapping
             )
         # Ensure converted to float32 ndarray
         self._psg = self._psg.astype(np.float32)
         self.times_loaded += 1
 
-    def _set_header_fields(self, header):
+    def _set_header_fields(self, header: dict):
         """
         TODO
 
@@ -428,7 +445,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
             print("Reloading SleepStudy '{}'".format(self.identifier))
         self.load(reload=True, allow_missing_channels=allow_missing_channels)
 
-    def get_psg_shape(self):
+    def get_psg_shape(self) -> tuple:
         """
         TODO
 
@@ -437,7 +454,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         """
         return self.psg.shape
 
-    def get_class_counts(self, as_dict=False):
+    def get_class_counts(self, as_dict=False) -> Union[dict, np.ndarray]:
         """
         Computes the class counts for the loaded hypnogram.
 
@@ -457,41 +474,5 @@ class SleepStudy(SubjectDirSleepStudyBase):
         else:
             return counts
 
-    def get_class_indicies(self, class_int):
+    def get_class_indices(self, class_int: int) -> np.ndarray:
         return self.class_to_period_dict[class_int]
-
-    def get_full_psg(self):
-        """
-        TODO
-
-        Returns:
-
-        """
-        return self.psg
-
-    def extract_from_psg(self, start, end, channel_inds=None):
-        """
-        Extract PSG data from second 'start' (inclusive) to second 'end'
-        (exclusive)
-
-        Args:
-            start: int, start second to extract from
-            end: int, end second to extract from
-            channel_inds: list, list of channel indices to extract from
-
-        Returns:
-            A Pandas DataFrame view or numpy view
-        """
-        if start > self.last_period_start_second:
-            raise ValueError("Cannot extract a full period starting from second"
-                             " {}. Last full period of {} seconds starts at "
-                             "second {}.".format(start, self.period_length_sec,
-                                                 self.last_period_start_second))
-        sr = self.sample_rate
-        first_row = int(start * sr)
-        last_row = int(end * sr)
-        rows = self.psg[first_row:last_row]
-        if channel_inds is not None:
-            return rows[:, channel_inds]
-        else:
-            return rows

@@ -4,10 +4,12 @@ Implements the SleepStudy class which represents a sleep study (PSG)
 
 import logging
 import numpy as np
+from typing import Union
 from psg_utils import errors, Defaults
 from psg_utils.dataset.sleep_study.abc_sleep_study import AbstractBaseSleepStudy
 from psg_utils.io.channels import ChannelMontageTuple, RandomChannelSelector
 from psg_utils.io.high_level_file_loaders import get_org_include_exclude_channel_montages
+from psg_utils.time_utils import TimeUnit
 
 logger = logging.getLogger(__name__)
 
@@ -19,20 +21,26 @@ class H5SleepStudy(AbstractBaseSleepStudy):
     def __init__(self,
                  h5_study_object,
                  annotation_dict=None,
-                 period_length_sec=None,
-                 no_hypnogram=False):
+                 no_hypnogram=False,
+                 period_length: [int, float] = 30,
+                 time_unit: Union[TimeUnit, str] = TimeUnit.SECOND,
+                 internal_time_unit: Union[TimeUnit, str] = TimeUnit.MILLISECOND):
         """
         TODO
         """
         self.h5_study_object = h5_study_object
         super(H5SleepStudy, self).__init__(
             annotation_dict=annotation_dict,
-            period_length_sec=period_length_sec,
-            no_hypnogram=no_hypnogram
+            no_hypnogram=no_hypnogram,
+            period_length=period_length,
+            time_unit=time_unit,
+            internal_time_unit=internal_time_unit,
+            on_overlapping="RAISE"  # TODO - not used
         )
         if self.annotation_dict:
             self.annotation_dict = np.vectorize(annotation_dict.get)
         self._access_time_random_channel_selector = None
+        self._n_classes = None  # Set in self.load
         self.load()  # Sets data visibility
 
     @property
@@ -74,7 +82,7 @@ class H5SleepStudy(AbstractBaseSleepStudy):
         """
         return bool(self.h5_study_object)
 
-    def _load_with_any_in(self, channel_sets, channels_in_file):
+    def _load_with_any_in(self, channel_sets, channels_in_file, allow_missing_channels: bool = False):
         """
         TODO
 
@@ -91,7 +99,8 @@ class H5SleepStudy(AbstractBaseSleepStudy):
                 org_channels, include_channels, _, _ = \
                     get_org_include_exclude_channel_montages(
                         load_channels=channel_set,
-                        header={'channel_names': channels_in_file}
+                        header={'channel_names': channels_in_file},
+                        allow_missing_channels=allow_missing_channels
                     )
                 return include_channels
             except errors.ChannelNotFoundError as e:
@@ -108,19 +117,21 @@ class H5SleepStudy(AbstractBaseSleepStudy):
                                                       "{}".format(s, sa))
                     raise err from e
 
-    def load(self, reload=False):
+    def load(self, allow_missing_channels=False):
         """
         Sets the PSG and hypnogram visibility according to self._try_channels.
         """
         # Get channels
         channels = ChannelMontageTuple(list(self.h5_study_object['PSG'].keys()))
         loaded_channels = self._load_with_any_in(self._try_channels,
-                                                 channels_in_file=channels)
+                                                 channels_in_file=channels,
+                                                 allow_missing_channels=allow_missing_channels)
         self._psg = {
             chan: self.h5_study_object['PSG'][chan.original_name] for chan in loaded_channels
         }
         self._set_loaded_channels(loaded_channels)
         self._hypnogram = np.asarray(self.h5_study_object['hypnogram'])
+        self._n_classes = len(np.unique(self._hypnogram))
         self._class_to_period_dict = {str(class_int): np.asarray(class_indices) for class_int, class_indices
                                       in self.h5_study_object['class_to_index'].items()}
 
@@ -130,74 +141,30 @@ class H5SleepStudy(AbstractBaseSleepStudy):
         self._hypnogram = None
         self._class_to_period_dict = None
 
-    def reload(self, warning=True):
+    def reload(self, warning=True, allow_missing_channels=False):
         """ Only sets the current channel visibility """
         self.unload()
-        self.load()
+        self.load(allow_missing_channels=allow_missing_channels)
 
-    def get_psg_shape(self):
+    def get_psg_shape(self) -> tuple:
         """
-        TODO
+        Returns the shape of the PSG array as returned by self.get_psg_as_array
 
         Returns:
-
+            tuple, [n_periods * data_per_period, self.n_channels]
         """
-        return list(self.psg[self.select_channels[0]].shape) + [len(self.psg)]
+        return len(self.psg[self.select_channels[0]]), self.n_channels
 
-    def get_full_psg(self):
+    def get_psg_as_array(self) -> np.ndarray:
         """
-        TODO
-
-        Returns:
-
+        Returns the PSG stored in self.psg as a single, flat ndarray of shape [-1, n_channels]
         """
-        raise NotImplementedError
         psg = np.empty(shape=self.get_psg_shape(), dtype=Defaults.PSG_DTYPE)
         for i, c in enumerate(self.select_channels):
-            psg[i] = self.psg[c]
+            psg[:, i] = self.psg[c]
         return psg
 
-    def get_full_hypnogram(self):
-        """
-        TODO
-
-        Returns:
-
-        """
-        return self.translate_labels(self.hypnogram)
-
-    def get_all_periods(self):
-        """
-        TODO
-
-        Returns:
-
-        """
-        return self.get_periods_by_idx(0, self.n_periods-1)
-
-    def _second_to_idx(self, second):
-        """
-        TODO
-
-        Args:
-            second:
-
-        Returns:
-
-        """
-        if second % self.period_length_sec:
-            raise ValueError("Invalid second of {}, not divisible by period "
-                             "length of {} "
-                             "seconds".format(second, self.period_length_sec))
-        rec_len = self.recording_length_sec
-        if second >= rec_len:
-            raise ValueError("Second {} outside range of sleep study {} "
-                             "of length {} seconds".format(second,
-                                                           self.identifier,
-                                                           rec_len))
-        return second // self.period_length_sec
-
-    def get_class_indicies(self, class_int):
+    def get_class_indices(self, class_int: int) -> np.ndarray:
         """
         TODO
 
@@ -221,12 +188,14 @@ class H5SleepStudy(AbstractBaseSleepStudy):
         else:
             return y
 
-    def _get_sample_channels(self):
+    def _get_sample_channels(self) -> list:
         """
-        TODO
+        If a RandomChannelSelector is not set (see self.access_time_random_channel_selector setter method), simply
+        returns the self.select_channels property. Otherwise, samples a set of channels from the RandomChannelSelector
+        (passing in channels in self.select_channels to select from) and returns those.
 
         Returns:
-
+            channels: a list of channels
         """
         if not self.access_time_random_channel_selector:
             return self.select_channels
@@ -235,73 +204,53 @@ class H5SleepStudy(AbstractBaseSleepStudy):
                 available_channels=self.select_channels
             )
 
-    def get_periods_by_idx(self, start_idx, end_idx):
+    def get_psg_periods_by_idx(self, start_idx: int, n_periods: int = 1, channel_indices: list = None) -> np.ndarray:
         """
-        Returns [N periods = end_idx - start_idx + 1] periods of data
+        Returns periods from the PSG in shape [n_periods, self.data_per_period, n_channels].
 
         Args:
-            start_idx: int, start index to extract
-            end_idx: int, end index to extract
+            start_idx (int):        Index of first period to return
+            n_periods (int):        The number of periods to return
+            channel_indices (list): Optional list of channel indices to extract from PSG. Extracts all with None.
 
         Returns:
-            X: ndarray of shape [N periods, data_per_period, num_channels]
-            y: ndarray of shape [N, 1]
+            psg: ndarray of shape [n_periods, self.data_per_period, n_channels]
         """
-        n_periods = end_idx-start_idx+1
+        if channel_indices is not None:
+            # TODO consider changing ABC; Use 'channel_names' instead of 'channel_indices' across study classes.
+            # TODO consider interaction between RandomChannelSelector and future 'channel_names' argument
+            self.raise_err(NotImplementedError, f"Cannot specify parameter 'channel_indices' ({channel_indices}) "
+                                                f"with this study class.")
+        # Sample (if RandomChannelSelector is set) or get select_channels property
         channels = self._get_sample_channels()
-        x = np.empty(shape=[n_periods, self.data_per_period, len(channels)],
-                     dtype=Defaults.PSG_DTYPE)
+        psg = np.empty(shape=[n_periods * self.data_per_period, len(channels)], dtype=Defaults.PSG_DTYPE)
+        data_start_idx = start_idx * self.data_per_period
+        data_end_idx = data_start_idx + (self.data_per_period * n_periods)
         for i, chan in enumerate(channels):
-            x[..., i] = self.psg[chan][start_idx:end_idx+1]
-        y = self.hypnogram[start_idx:end_idx+1]
-        return x, self.translate_labels(y).reshape(-1, 1)
+            psg[:, i] = self.psg[chan][data_start_idx:data_end_idx]
+        return psg.reshape([n_periods, self.data_per_period, psg.shape[-1]])
 
-    def get_psg_period_at_sec(self, second):
+    def get_hyp_periods_by_idx(self, start_idx: int, n_periods: int = 1, on_overlapping: [str, None] = None) -> np.ndarray:
         """
-        TODO
+        Returns periods from the hypnogram in shape [n_periods].
 
         Args:
-            second:
+            start_idx (int): Index of first period to return
+            n_periods (int): The number of periods to return
+            on_overlapping:  Not used
 
         Returns:
-
+            hyp: ndarray of shape [n_periods]
         """
-        if self.access_time_random_channel_selector:
-            raise RuntimeError("Calls to 'get_psg_period_at_sec' not permitted"
-                               " when the 'access_time_random_channel_selector'"
-                               " attribute is set - use 'get_periods_by_idx' "
-                               "instead.")
-        # Get idx
-        idx = self._second_to_idx(second)
-        channels = self.select_channels
-        x = np.empty(shape=[self.data_per_period, len(channels)],
-                     dtype=self.psg[channels[0]].dtype)
-        for i, chan in enumerate(channels):
-            x[:, i] = self.psg[chan][idx]
-        return x
-
-    def get_stage_at_sec(self, second):
-        """
-        TODO
-
-        Args:
-            second:
-
-        Returns:
-
-        """
-        idx = self._second_to_idx(second)
-        return self.translate_labels(self.hypnogram[idx])
+        hyp = self.hypnogram[start_idx:start_idx+n_periods]
+        return self.translate_labels(hyp).reshape([-1])
 
     @property
-    def sample_rate(self):
+    def sample_rate(self) -> int:
         """
-        TODO
-
-        Returns:
-
+        Returns the sample rate as an integer
         """
-        return self.h5_study_object.attrs.get('sample_rate')
+        return int(self.h5_study_object.attrs.get('sample_rate'))
 
     @property
     def date(self):
@@ -314,25 +263,11 @@ class H5SleepStudy(AbstractBaseSleepStudy):
         return self.h5_study_object.attrs.get('date')
 
     @property
-    def n_classes(self):
+    def n_classes(self) -> int:
         """
-        TODO
-
-        Returns:
-
+        Returns the number of unique classes in self.hypnogram
         """
-        return len(np.unique(self.get_full_hypnogram()))
-
-    @property
-    def recording_length_sec(self):
-        """
-        TODO
-
-        Returns:
-
-        """
-        s1, s2, _ = self.get_psg_shape()
-        return (s1*s2) / self.sample_rate
+        return self._n_classes
 
     @property
     def n_sample_channels(self):
@@ -369,22 +304,6 @@ class H5SleepStudy(AbstractBaseSleepStudy):
                                                      type(channel_selector)))
         self._access_time_random_channel_selector = channel_selector
 
-    def extract_from_psg(self, start, end, channel_inds=None):
-        """
-        Extract PSG data from second 'start' (inclusive) to second 'end'
-        (exclusive)
-
-        Args:
-            start: int, start second to extract from
-            end: int, end second to extract from
-            channel_inds: list, list of channel indices to extract from
-
-        Returns:
-            X: ndarray of shape [N periods, data_per_period, C]
-        """
-        start_idx, end_idx = self._second_to_idx(start), self._second_to_idx(end)
-        return self.get_periods_by_idx(start_idx, end_idx)[0]  # TODO, reads labels for no reason
-
     def to_batch_generator(self, batch_size, overlapping=False):
         """
         Yields batches of data from the SleepStudy PSG/HYP pair
@@ -402,6 +321,8 @@ class H5SleepStudy(AbstractBaseSleepStudy):
                                  self.n_channels]
             y: ndarray of shape [batch_size, 1]
         """
+        # TODO
+        raise NotImplementedError("TODO")
         if overlapping:
             raise NotImplementedError("H5SleepStudy objects do not support "
                                       "to_batch_generator with "

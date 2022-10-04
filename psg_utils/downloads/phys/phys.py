@@ -88,10 +88,11 @@ def preprocess_phys_hypnograms(dataset_folder_path):
         stages = [s for s in pairs if not ("(" in s[0] or ")" in s[0])]
         stages = [(s[0], int(s[1]/sample_rate)) for s in stages]
         stages, starts = map(list, zip(*stages))
+        stages = [LABEL_MAP[s] for s in stages]
 
         if starts[0] != 0:
             i = [0] + starts
-            s = ["UNKNOWN"] + [LABEL_MAP[s] for s in stages]
+            s = ["UNKNOWN"] + stages
         else:
             i, s = starts, stages
         diff = psg_length_sec - i[-1]

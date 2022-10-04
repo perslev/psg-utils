@@ -9,11 +9,13 @@ This file should contain only the following functions:
 
 import logging
 import h5py
+from typing import Union
 from psg_utils.io.psg import extract_psg_data
 from psg_utils.io.hypnogram import extract_hyp_data
 from psg_utils.io.header import extract_header
 from psg_utils.io.channels.utils import get_org_include_exclude_channel_montages
 from psg_utils.errors import ChannelNotFoundError
+from psg_utils.time_utils import TimeUnit
 
 logger = logging.getLogger(__name__)
 
@@ -93,21 +95,24 @@ def load_psg(psg_file_path,
     return psg_data, header
 
 
-def load_hypnogram(file_path, period_length_sec, annotation_dict, sample_rate):
+def load_hypnogram(file_path: str,
+                   period_length: Union[int, float],
+                   annotation_dict: dict,
+                   sample_rate: int,
+                   time_unit: TimeUnit = TimeUnit.SECOND):
     """
     Returns a psg_utils.hypnogram SparseHypnogram object representation of the
     hypnogram / sleep stages / labels data at path 'file_path'.
 
     Args:
-        file_path:          A string path pointing to the file to load
-        period_length_sec:  The sleep staging 'epoch' length in seconds
-        annotation_dict:    A dictionary mapping labels as stored in
-                            'file_path' to integer label values. Can be None,
-                            in which case a default or automatically inferred
+        file_path:          (str) A string path pointing to the file to load
+        period_length:      (int, float) The sleep staging 'epoch' length in unit 'time_unit'
+        time_unit:          (TimeUnit) The time unit for 'period_length' and inits/durations in file at 'file_path'
+        annotation_dict:    (dict) A dictionary mapping labels as stored in 'file_path' to integer label values.
+                            Can be None, in which case a default or automatically inferred
                             annotation_dict will be used.
-        sample_rate:        The sample of the original signal - used in rare
-                            cases to convert a 'signal dense' hypnogram
-                            (see psg_utils.hypnogram.utils).
+        sample_rate:        (int) The sample of the original signal - used in rare cases to convert a
+                            'signal dense' hypnogram (see psg_utils.hypnogram.utils).
 
     Returns:
         A SparseHypnogram object
@@ -116,7 +121,8 @@ def load_hypnogram(file_path, period_length_sec, annotation_dict, sample_rate):
         case the returned annotation_dict will be the automatically inferred
     """
     hyp, annotation_dict = extract_hyp_data(file_path=file_path,
-                                            period_length_sec=period_length_sec,
+                                            period_length=period_length,
+                                            time_unit=time_unit,
                                             annotation_dict=annotation_dict,
                                             sample_rate=sample_rate)
     return hyp, annotation_dict

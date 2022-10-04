@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from psg_utils import Defaults
 from psg_utils.hypnogram.formats import StartDurationStageFormat
 from psg_utils.hypnogram.utils import sparse_hypnogram_from_ids_format, ndarray_to_ids_format, squeeze_events
+from psg_utils.time_utils import TimeUnit
 
 
 def extract_from_edf(file_path, **kwargs):
@@ -82,7 +83,7 @@ def extract_from_xml(file_path, **kwargs):
     return StartDurationStageFormat((starts, durs, stages))
 
 
-def extract_from_np(file_path, period_length_sec, sample_rate):
+def extract_from_np(file_path, sample_rate, period_length, time_unit: TimeUnit = TimeUnit.SECOND):
     """
     Loader for hypnograms stored in numpy arrays (npz, npy).
 
@@ -97,12 +98,13 @@ def extract_from_np(file_path, period_length_sec, sample_rate):
         arr = arr[keys[0]]
     return ndarray_to_ids_format(
         array=arr,
-        period_length_sec=period_length_sec,
+        period_length=period_length,
+        time_unit=time_unit,
         sample_rate=sample_rate
     )
 
 
-def extract_from_stg_txt(file_path, period_length_sec, sample_rate):
+def extract_from_stg_txt(file_path, sample_rate, period_length, time_unit: TimeUnit = TimeUnit.SECOND):
     df = pd.read_csv(file_path, delimiter="\t")
     epoch, stages = df['Epoch'].values, df['User-Defined Stage'].values
     map_ = np.vectorize(
@@ -126,22 +128,23 @@ def extract_from_stg_txt(file_path, period_length_sec, sample_rate):
         stages_proccessed.append(stage)
     return ndarray_to_ids_format(
         array=stages,
-        period_length_sec=period_length_sec,
+        period_length=period_length,
+        time_unit=time_unit,
         sample_rate=sample_rate
     )
 
 
-def relative_time_stages_to_ids(relative_inits_sec, durations, stages):
+def relative_time_stages_to_ids(relative_inits, durations, stages):
     # Filter Nones/False/empty from stages
-    relative_inits_sec, durations, stages_dense = filter_none_events(relative_inits_sec, durations, stages)
+    relative_inits, durations, stages_dense = filter_none_events(relative_inits, durations, stages)
     merged_inits, merged_durs, merged_stages = [], [], []
-    for init_sec, duration, stage in zip(relative_inits_sec, durations, stages_dense):
-        if merged_stages and (stage == merged_stages[-1] and (merged_inits[-1] + merged_durs[-1]) == init_sec):
+    for init, duration, stage in zip(relative_inits, durations, stages_dense):
+        if merged_stages and (stage == merged_stages[-1] and (merged_inits[-1] + merged_durs[-1]) == init):
             # Continued stage, update last entry
             merged_durs[-1] += duration
         else:
             # New event
-            merged_inits.append(init_sec)
+            merged_inits.append(init)
             merged_durs.append(duration)
             merged_stages.append(stage)
     return StartDurationStageFormat((merged_inits, merged_durs, merged_stages))
@@ -170,6 +173,8 @@ def filter_none_events(start_times, durations, stages_dense):
 
 
 def absolute_time_stages_to_relative_ids(start_times, durations, stages_dense, start_time, pause_periods=None):
+    # TODO
+    raise NotImplementedError("TODO")
     start_times, durations, stages_dense = filter_none_events(start_times, durations, stages_dense)
     relative_times, stages = [], []
     for event_index, (event_time, stage) in enumerate(zip(start_times, stages_dense)):
@@ -179,7 +184,7 @@ def absolute_time_stages_to_relative_ids(start_times, durations, stages_dense, s
         relative_times.append(diff_sec)
         stages.append(stage)
     return relative_time_stages_to_ids(
-        relative_inits_sec=relative_times,
+        relative_inits=relative_times,
         stages=stages,
         durations=durations
     )
@@ -310,7 +315,7 @@ def extract_from_nchsdb(file_path, period_length_sec, sample_rate):
         start_recording = 0.0
 
     return relative_time_stages_to_ids(
-        relative_inits_sec=[np.round(init - start_recording) for init in onsets],
+        relative_inits=[np.round(init - start_recording) for init in onsets],
         stages=stages,
         durations=durations
     )
@@ -330,20 +335,27 @@ _EXTRACT_FUNCS = {
 }
 
 
-def extract_ids_from_hyp_file(file_path, period_length_sec=None, sample_rate=None, extract_func=None, replace_zero_durations=False):
+def extract_ids_from_hyp_file(file_path,
+                              period_length=None,
+                              time_unit: TimeUnit = TimeUnit.SECOND,
+                              sample_rate=None,
+                              extract_func=None,
+                              replace_zero_durations=False):
     """
     Entry function for extracing start-duration-stage format data from variable input files
 
     Args:
-        file_path: str path to hypnogram file
-        period_length_sec: integer or None - only used for loading ndarray data. If None, ndarray must be
-                           dense (not signal-dense)
-        sample_rate: integer or None - - only used for loading ndarray data. If None, ndarray must be
-                     dense (not signal-dense)
-        extract_func: callable, str or None: Callable or string identifier for callable as registered in _EXTRACT_FUNCS.
-                                             If None, the file extension is used as string identifier, e.g. 'file.ids'
-                                             will be loaded by the callable in _EXTRACT_FUNCS['ids'].
-        replace_zero_durations: False or int/float: If not False replaces duration of length exactly 0.0 with this value.
+        file_path:      (str) Path to hypnogram file
+        period_length:  (int, None) Only used for loading ndarray data.
+                                    If None, ndarray must be dense (not signal-dense)
+        time_unit:      (TimeUnit) The time unit for 'period_length' and inits/durations in file at 'file_path'
+
+        sample_rate:    (int, None) Only used for loading ndarray data.
+                                    If None, ndarray must be dense (not signal-dense)
+        extract_func:   (callable, str, None) Callable or string identifier for callable as registered in _EXTRACT_FUNCS.
+                                              If None, the file extension is used as string identifier, e.g. 'file.ids'
+                                              will be loaded by the callable in _EXTRACT_FUNCS['ids'].
+        replace_zero_durations: (bool, int/float): If not False replaces duration of length exactly 0.0 with this value.
 
     Returns:
         A StartDurationStageFormat object
@@ -353,28 +365,48 @@ def extract_ids_from_hyp_file(file_path, period_length_sec=None, sample_rate=Non
     if not callable(extract_func):
         extract_func = _EXTRACT_FUNCS[extract_func]
     inits, durs, stages = extract_func(file_path=file_path,
-                                       period_length_sec=period_length_sec,
+                                       period_length=period_length,
+                                       time_unit=time_unit,
                                        sample_rate=sample_rate)
     if replace_zero_durations:
         durs = np.where(np.isclose(durs, 0), replace_zero_durations, durs)
     return squeeze_events(inits, durs, stages)
 
 
-def extract_hyp_data(file_path, period_length_sec, annotation_dict, sample_rate, replace_zero_durations=False):
+def extract_hyp_data(file_path,
+                     period_length,
+                     annotation_dict,
+                     sample_rate,
+                     replace_zero_durations=False,
+                     time_unit: TimeUnit = TimeUnit.SECOND,
+                     hyp_internal_time_unit: TimeUnit = TimeUnit.MILLISECOND):
     """
     Load a hypnogram from a file at 'file_path'
+
+    Args:
+        file_path:              (str) A string path to the hypnogram file to load
+        period_length:          (int, float) The length of 1 period of data in time units 'time_unit'.
+        annotation_dict         (dict) Dictionary mapping from labels in array to sleep
+        sample_rate:            (int) Sample rate of corresponding PSG data in Hz.
+        replace_zero_durations: (bool, int/float): If not False replaces duration of length exactly 0.0 with this value.
+        time_unit:              (TimeUnit) The time unit for 'period_length' and inits/durations in file at 'file_path'
+        hyp_internal_time_unit  (TimeUnit) The time unit to use internally in the returned SparseHypnogram. Can usually
+                                           be left at its default value.
 
     Returns:
         A SparseHypnogram object, annotation dict
     """
     ids_tuple = extract_ids_from_hyp_file(
         file_path,
-        period_length_sec=period_length_sec,
+        period_length=period_length,
+        time_unit=time_unit,
         sample_rate=sample_rate,
         replace_zero_durations=replace_zero_durations
     )
     return sparse_hypnogram_from_ids_format(
         ids_tuple=ids_tuple,
-        period_length_sec=period_length_sec,
-        ann_to_class=annotation_dict
+        period_length=period_length,
+        ann_to_class=annotation_dict,
+        time_unit=time_unit,
+        hyp_internal_time_unit=hyp_internal_time_unit
     )

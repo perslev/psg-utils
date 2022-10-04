@@ -12,14 +12,14 @@ def to_ids(start, durs, stage, out):
     """
     Save init/start, durs, stage lists to .ids format
 
-    :param start: list, list of start/onset/inits in seconds
-    :param durs: list, list of durations in seconds
+    :param start: list of ints/floats, list of start/onset/inits
+    :param durs: list of ints/float, list of durations
     :param stage: list, list of stages (typically string or ints)
     :param out: str, path to output path, usually with suffix '.ids'
     """
     with open(out, "w") as out_f:
         for i, d, s in zip(start, durs, stage):
-            out_f.write("{},{},{}\n".format(int(i), int(d), s))
+            out_f.write("{},{},{}\n".format(i, d, s))
 
 
 def to_h5_file(out_path, data, channel_names, sample_rate, date, dtype=np.float32, **kwargs):
@@ -61,10 +61,13 @@ def to_h5_file(out_path, data, channel_names, sample_rate, date, dtype=np.float3
     data = data.astype(dtype)
     with h5py.File(out_path, "w") as out_f:
         out_f.create_group("channels")
-        for chan_dat, chan_name in zip(data, channel_names):
-            out_f['channels'].create_dataset(chan_name,
-                                             data=chan_dat,
-                                             chunks=True,
-                                             compression='gzip')
+        for i, (chan_dat, chan_name) in enumerate(zip(data, channel_names)):
+            dataset = out_f['channels'].create_dataset(
+                chan_name,
+                data=chan_dat,
+                chunks=True,
+                compression='gzip'
+            )
+            dataset.attrs["channel_index"] = i
         out_f.attrs['date'] = date or "UNKNOWN"
         out_f.attrs["sample_rate"] = sample_rate

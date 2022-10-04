@@ -16,9 +16,9 @@ import numpy as np
 from psg_utils.errors import H5ChannelRootError
 from psg_utils.utils import mne_no_log_context
 from psg_utils.io.header.header_standardizers import (_standardized_edf_header,
-                                                       _standardized_wfdb_header,
-                                                       _standardized_h5_header,
-                                                       _standardized_bin_header)
+                                                      _standardized_wfdb_header,
+                                                      _standardized_h5_header,
+                                                      _standardized_bin_header)
 
 logger = logging.getLogger(__name__)
 
