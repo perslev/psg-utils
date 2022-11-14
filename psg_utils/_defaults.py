@@ -35,9 +35,13 @@ class _Defaults:
         return np.vectorize(map_.get)
 
     @classmethod
-    def get_stage_lists(cls):
-        return [cls.AWAKE, cls.NON_REM_STAGE_1, cls.NON_REM_STAGE_2,
-                cls.NON_REM_STAGE_3, cls.REM, cls.UNKNOWN]
+    def get_stage_lists(cls, include_unkown_class=True):
+        classes = [cls.AWAKE, cls.NON_REM_STAGE_1, cls.NON_REM_STAGE_2,
+                   cls.NON_REM_STAGE_3, cls.REM, cls.UNKNOWN]
+        if include_unkown_class:
+            return classes
+        else:
+            return classes[:-1]
 
     @classmethod
     def get_stage_string_to_class_int(cls):
@@ -46,10 +50,10 @@ class _Defaults:
         return {s[0]: s[1] for s in cls.get_stage_lists()}
 
     @classmethod
-    def get_class_int_to_stage_string(cls):
+    def get_class_int_to_stage_string(cls, include_unkown_class=True):
         # Dictionary mapping from integer representation to standardized
         # string rep
-        return {s[1]: s[0] for s in cls.get_stage_lists()}
+        return {s[1]: s[0] for s in cls.get_stage_lists(include_unkown_class)}
 
     @classmethod
     def get_default_period_length(cls):
