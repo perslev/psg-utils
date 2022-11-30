@@ -14,6 +14,7 @@ def set_preprocessing_pipeline(*datasets, hparams):
     - [if applicable] SleepStudyDataset.set_quality_control_func()
     - [if applicable] SleepStudyDataset.set_scaler()
     - [if applicable] SleepStudyDataset.set_channel_sampling_groups()
+    - [if applicable] SleepStudyDataset.set_filtering_settings()
 
     Args:
         *datasets: Any number of SleepStudyDataset-like objects
@@ -46,6 +47,11 @@ def set_preprocessing_pipeline(*datasets, hparams):
     strip_settings = hparams.get("strip_func")
     if strip_settings and hasattr(datasets[0], 'set_strip_func'):
         list(map(lambda ds: ds.set_strip_func(**strip_settings), datasets))
+
+    # Set scaler
+    filter_settings = hparams.get("filter_settings")
+    if filter_settings and hasattr(datasets[0], 'set_filter_settings'):
+        list(map(lambda ds: ds.set_filter_settings(**filter_settings), datasets))
 
     # Apply quality control function if specified
     quality_settings = hparams.get("quality_control_func")

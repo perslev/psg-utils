@@ -119,6 +119,15 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
         for ss in self:
             ss.set_strip_func(strip_func, **kwargs)
 
+    def set_filter_settings(self, **filter_settings):
+        """
+        Sets the 'filter_settings' property on all stored SleepStudy objects.
+        Please refer to the SleepStudy.filter_settings setter method.
+        """
+        self.log(f"Settings filter settings: {filter_settings}...")
+        for ss in self:
+            ss.filter_settings = filter_settings
+
     def set_quality_control_func(self, quality_control_func, **kwargs):
         """
         Sets the 'quality_control_func' property on all stored SleepStudy

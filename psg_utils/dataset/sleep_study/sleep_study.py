@@ -9,9 +9,10 @@ from psg_utils import errors
 from psg_utils.io.channels import RandomChannelSelector
 from psg_utils.io.high_level_file_loaders import load_psg, load_hypnogram
 from psg_utils.preprocessing import (apply_scaling, strip_funcs, apply_strip_func,
-                                      assert_scaler, set_psg_sample_rate,
-                                      quality_control_funcs, assert_equal_length,
-                                      apply_quality_control_func)
+                                     assert_scaler, set_psg_sample_rate,
+                                     quality_control_funcs, assert_equal_length,
+                                     apply_quality_control_func,
+                                     apply_filtering)
 from psg_utils.hypnogram.utils import create_class_int_to_period_idx_dict
 from psg_utils.dataset.sleep_study.subject_dir_sleep_study_base import SubjectDirSleepStudyBase
 from psg_utils.time_utils import TimeUnit
@@ -104,6 +105,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         self._load_time_random_channel_selector = None
         self._strip_func = None
         self._quality_control_func = None
+        self._filter_settings = None
         self._sample_rate = None
         self._date = None
         self._org_sample_rate = None
@@ -288,6 +290,20 @@ class SleepStudy(SubjectDirSleepStudyBase):
             self.reload(warning=True)
 
     @property
+    def filter_settings(self) -> Union[None, dict]:
+        """ See setter method """
+        return self._filter_settings
+
+    @filter_settings.setter
+    def filter_settings(self, filter_settings: dict):
+        """
+        TODO
+        """
+        self._filter_settings = filter_settings
+        if self.loaded:
+            self.reload(warning=True)
+
+    @property
     def loaded(self) -> bool:
         """
         Returns whether the SleepStudy data is currently loaded or not
@@ -378,6 +394,10 @@ class SleepStudy(SubjectDirSleepStudyBase):
                                              "long in seconds. Consider setting a "
                                              "strip_function. "
                                              "See psg_utils.preprocessing.strip_funcs.", _from=e)
+
+        if self.filter_settings:
+            # Apply mne.mne.filter.filter_data function with specified settings
+            self._psg = apply_filtering(self._psg, self.org_sample_rate, **self.filter_settings)
 
         if self.quality_control_func:
             # Run over epochs and assess if epoch-specific changes should be
