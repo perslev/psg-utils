@@ -124,7 +124,7 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
         Sets the 'filter_settings' property on all stored SleepStudy objects.
         Please refer to the SleepStudy.filter_settings setter method.
         """
-        self.log(f"Settings filter settings: {filter_settings}...")
+        self.log(f"Setting filter settings: {filter_settings}...")
         for ss in self:
             ss.filter_settings = filter_settings
 
@@ -133,7 +133,7 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
         Sets the 'notch_filter_settings' property on all stored SleepStudy objects.
         Please refer to the SleepStudy.notch_filter_settings setter method.
         """
-        self.log(f"Settings notch filter settings: {notch_filter_settings}...")
+        self.log(f"Setting notch filter settings: {notch_filter_settings}...")
         for ss in self:
             ss.notch_filter_settings = notch_filter_settings
 
