@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def select_sample_strip_scale_quality(*datasets, hparams):
+def set_preprocessing_pipeline(*datasets, hparams):
     """
     Helper function which calls the following methods on a SleepStudyDataset
     like object with parameters inferred from a YAMLHparams object:
