@@ -15,6 +15,7 @@ def apply_filtering(psg, sample_rate, **filter_kwargs) -> np.ndarray:
         sample_rate:              The sample rate of data in the PSG
         **filter_kwargs:          Filtering arguments passed to mne.filter.filter_data
     """
+    dtype_mem = psg.dtype
     return filter_data(
-        psg.T, sample_rate, **filter_kwargs
-    ).T
+        psg.T.astype(np.float64), sample_rate, **filter_kwargs
+    ).T.astype(dtype_mem)
