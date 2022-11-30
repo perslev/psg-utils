@@ -48,10 +48,15 @@ def set_preprocessing_pipeline(*datasets, hparams):
     if strip_settings and hasattr(datasets[0], 'set_strip_func'):
         list(map(lambda ds: ds.set_strip_func(**strip_settings), datasets))
 
-    # Set scaler
+    # Set filtering
     filter_settings = hparams.get("filter_settings")
     if filter_settings and hasattr(datasets[0], 'set_filter_settings'):
         list(map(lambda ds: ds.set_filter_settings(**filter_settings), datasets))
+
+    # Set notch filtering
+    notch_filter_settings = hparams.get("notch_filter_settings")
+    if notch_filter_settings and hasattr(datasets[0], 'set_notch_filter_settings'):
+        list(map(lambda ds: ds.set_notch_filter_settings(**notch_filter_settings), datasets))
 
     # Apply quality control function if specified
     quality_settings = hparams.get("quality_control_func")

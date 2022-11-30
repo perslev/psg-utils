@@ -128,6 +128,15 @@ class SleepStudyDataset(SubjectDirSleepStudyDatasetBase):
         for ss in self:
             ss.filter_settings = filter_settings
 
+    def set_notch_filter_settings(self, **notch_filter_settings):
+        """
+        Sets the 'notch_filter_settings' property on all stored SleepStudy objects.
+        Please refer to the SleepStudy.notch_filter_settings setter method.
+        """
+        self.log(f"Settings notch filter settings: {notch_filter_settings}...")
+        for ss in self:
+            ss.notch_filter_settings = notch_filter_settings
+
     def set_quality_control_func(self, quality_control_func, **kwargs):
         """
         Sets the 'quality_control_func' property on all stored SleepStudy
