@@ -9,9 +9,11 @@ from psg_utils import errors
 from psg_utils.io.channels import RandomChannelSelector
 from psg_utils.io.high_level_file_loaders import load_psg, load_hypnogram
 from psg_utils.preprocessing import (apply_scaling, strip_funcs, apply_strip_func,
-                                      assert_scaler, set_psg_sample_rate,
-                                      quality_control_funcs, assert_equal_length,
-                                      apply_quality_control_func)
+                                     assert_scaler, set_psg_sample_rate,
+                                     quality_control_funcs, assert_equal_length,
+                                     apply_quality_control_func,
+                                     apply_filtering,
+                                     apply_notch_filtering)
 from psg_utils.hypnogram.utils import create_class_int_to_period_idx_dict
 from psg_utils.dataset.sleep_study.subject_dir_sleep_study_base import SubjectDirSleepStudyBase
 from psg_utils.time_utils import TimeUnit
@@ -104,6 +106,8 @@ class SleepStudy(SubjectDirSleepStudyBase):
         self._load_time_random_channel_selector = None
         self._strip_func = None
         self._quality_control_func = None
+        self._filter_settings = None
+        self._notch_filter_settings = None
         self._sample_rate = None
         self._date = None
         self._org_sample_rate = None
@@ -240,7 +244,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         """
         return self._strip_func
 
-    def set_strip_func(self, strip_func_str: str, **kwargs):
+    def set_strip_func(self, strip_func: str, **kwargs):
         """
         Sets a strip function. Strip functions are applied to the PSG/HYP pair
         at load time and may deal with minor differences between the length
@@ -250,15 +254,15 @@ class SleepStudy(SubjectDirSleepStudyBase):
         Forces a reload if self.loaded is True
 
         Args:
-            strip_func_str: A string naming a strip_func in:
-                            psg_utils.preprocessing.strip_funcs
-            kwargs:         Other kw arguments that will be passed to the strip
-                            function.
+            strip_func: A string naming a strip_func in:
+                        psg_utils.preprocessing.strip_funcs
+            kwargs:     Other kw arguments that will be passed to the strip
+                        function.
         """
-        if strip_func_str not in strip_funcs.__dict__:
+        if strip_func not in strip_funcs.__dict__:
             self.raise_err(ValueError, "Invalid strip function "
-                                       "{}".format(strip_func_str))
-        self._strip_func = (strip_func_str, kwargs)
+                                       "{}".format(strip_func))
+        self._strip_func = (strip_func, kwargs)
         if self.loaded:
             self.reload(warning=True)
 
@@ -284,6 +288,34 @@ class SleepStudy(SubjectDirSleepStudyBase):
             self.raise_err(ValueError, "Invalid quality control function "
                                        "{}".format(quality_control_func))
         self._quality_control_func = (quality_control_func, kwargs)
+        if self.loaded:
+            self.reload(warning=True)
+
+    @property
+    def filter_settings(self) -> Union[None, dict]:
+        """ See setter method """
+        return self._filter_settings
+
+    @filter_settings.setter
+    def filter_settings(self, filter_settings: dict):
+        """
+        TODO
+        """
+        self._filter_settings = filter_settings
+        if self.loaded:
+            self.reload(warning=True)
+
+    @property
+    def notch_filter_settings(self) -> Union[None, dict]:
+        """ See setter method """
+        return self._notch_filter_settings
+
+    @notch_filter_settings.setter
+    def notch_filter_settings(self, notch_filter_settings: dict):
+        """
+        TODO
+        """
+        self._notch_filter_settings = notch_filter_settings
         if self.loaded:
             self.reload(warning=True)
 
@@ -378,6 +410,14 @@ class SleepStudy(SubjectDirSleepStudyBase):
                                              "long in seconds. Consider setting a "
                                              "strip_function. "
                                              "See psg_utils.preprocessing.strip_funcs.", _from=e)
+
+        if self.filter_settings:
+            # Apply mne.mne.filter.filter_data function with specified settings
+            self._psg = apply_filtering(self._psg, self.org_sample_rate, **self.filter_settings)
+
+        if self.notch_filter_settings:
+            # Apply mne.mne.filter.notch_filter function with specified settings
+            self._psg = apply_notch_filtering(self._psg, self.org_sample_rate, **self.notch_filter_settings)
 
         if self.quality_control_func:
             # Run over epochs and assess if epoch-specific changes should be

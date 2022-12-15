@@ -613,11 +613,9 @@ class AbstractBaseSleepStudy(ABC):
             X: ndarray of shape [batch_size, self.data_per_period, self.n_channels]
             y: ndarray of shape [batch_size, 1]
         """
-        # TODO
-        raise NotImplementedError('TODO')
         x_batch, y_batch = [], []
         for idx in range(self.n_periods):
-            x, y = self.get_period_by_idx(idx)
+            x, y = self.get_periods_by_idx(idx)
             x_batch.append(x), y_batch.append(y)
             if len(x_batch) == batch_size:
                 # Note: must copy if overlapping=True

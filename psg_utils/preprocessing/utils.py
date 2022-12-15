@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def select_sample_strip_scale_quality(*datasets, hparams):
+def set_preprocessing_pipeline(*datasets, hparams):
     """
     Helper function which calls the following methods on a SleepStudyDataset
     like object with parameters inferred from a YAMLHparams object:
@@ -14,6 +14,7 @@ def select_sample_strip_scale_quality(*datasets, hparams):
     - [if applicable] SleepStudyDataset.set_quality_control_func()
     - [if applicable] SleepStudyDataset.set_scaler()
     - [if applicable] SleepStudyDataset.set_channel_sampling_groups()
+    - [if applicable] SleepStudyDataset.set_filtering_settings()
 
     Args:
         *datasets: Any number of SleepStudyDataset-like objects
@@ -46,6 +47,16 @@ def select_sample_strip_scale_quality(*datasets, hparams):
     strip_settings = hparams.get("strip_func")
     if strip_settings and hasattr(datasets[0], 'set_strip_func'):
         list(map(lambda ds: ds.set_strip_func(**strip_settings), datasets))
+
+    # Set filtering
+    filter_settings = hparams.get("filter_settings")
+    if filter_settings and hasattr(datasets[0], 'set_filter_settings'):
+        list(map(lambda ds: ds.set_filter_settings(**filter_settings), datasets))
+
+    # Set notch filtering
+    notch_filter_settings = hparams.get("notch_filter_settings")
+    if notch_filter_settings and hasattr(datasets[0], 'set_notch_filter_settings'):
+        list(map(lambda ds: ds.set_notch_filter_settings(**notch_filter_settings), datasets))
 
     # Apply quality control function if specified
     quality_settings = hparams.get("quality_control_func")
