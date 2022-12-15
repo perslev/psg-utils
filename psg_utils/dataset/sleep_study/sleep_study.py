@@ -244,7 +244,7 @@ class SleepStudy(SubjectDirSleepStudyBase):
         """
         return self._strip_func
 
-    def set_strip_func(self, strip_func_str: str, **kwargs):
+    def set_strip_func(self, strip_func: str, **kwargs):
         """
         Sets a strip function. Strip functions are applied to the PSG/HYP pair
         at load time and may deal with minor differences between the length
@@ -254,15 +254,15 @@ class SleepStudy(SubjectDirSleepStudyBase):
         Forces a reload if self.loaded is True
 
         Args:
-            strip_func_str: A string naming a strip_func in:
-                            psg_utils.preprocessing.strip_funcs
-            kwargs:         Other kw arguments that will be passed to the strip
-                            function.
+            strip_func: A string naming a strip_func in:
+                        psg_utils.preprocessing.strip_funcs
+            kwargs:     Other kw arguments that will be passed to the strip
+                        function.
         """
-        if strip_func_str not in strip_funcs.__dict__:
+        if strip_func not in strip_funcs.__dict__:
             self.raise_err(ValueError, "Invalid strip function "
-                                       "{}".format(strip_func_str))
-        self._strip_func = (strip_func_str, kwargs)
+                                       "{}".format(strip_func))
+        self._strip_func = (strip_func, kwargs)
         if self.loaded:
             self.reload(warning=True)
 
