@@ -249,7 +249,7 @@ def convert_to_strip_mask(bool_mask):
         for i, elem in enumerate(arr):
             if not elem:
                 return i
-    bool_mask = np.array(bool_mask, dtype=np.bool, copy=True)
+    bool_mask = np.array(bool_mask, dtype=bool, copy=True)
     forward_false_idx = false_index(bool_mask)
     backward_false_idx = false_index(bool_mask[::-1])
     bool_mask[forward_false_idx:-backward_false_idx] = False
