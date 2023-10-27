@@ -138,7 +138,7 @@ def dense_to_sparse(array, period_length, time_unit: TimeUnit = TimeUnit.SECOND,
                              f"divisible by the period length of {period_length}, "
                              f"and allow_trim was set to False")
         durs[-1] -= trail
-    return np.asarray(inits, np.float), np.asarray(durs, np.float), stages
+    return np.asarray(inits, float), np.asarray(durs, float), stages
 
 
 def signal_dense_to_sparse(array, sample_rate, period_length, time_unit: TimeUnit = TimeUnit.SECOND, allow_trim=False):
