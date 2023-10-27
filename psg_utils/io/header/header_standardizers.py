@@ -278,7 +278,7 @@ def _standardized_bin_header(raw_header):
     raw_header = {key.upper(): values for key, values in raw_header.items()}
 
     # Order header entries according to CHX column
-    order = np.argsort(np.array(raw_header['CHX'], dtype=np.int))
+    order = np.argsort(np.array(raw_header['CHX'], dtype=int))
     raw_header = {key: ([entry[i] for i in order]
                         if isinstance(entry, (list, tuple, np.ndarray))
                         else entry)

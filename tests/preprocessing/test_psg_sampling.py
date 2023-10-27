@@ -16,7 +16,7 @@ class TestPSGSampling:
 
         # Assert output type, should be float64 but if other versions cast to float32 that is fine as well
         assert psg_resampled.dtype in (np.float64, np.float32)
-        assert poly_resample(psg_array.astype(np.int), new_sample_rate=1, old_sample_rate=2).dtype in (np.float64, np.float32)
+        assert poly_resample(psg_array.astype(int), new_sample_rate=1, old_sample_rate=2).dtype in (np.float64, np.float32)
 
         # Test on other datatypes, should not raise an error and should give similar results
         assert np.all(np.isclose(
@@ -25,7 +25,7 @@ class TestPSGSampling:
         ))
         # Should be similar values even when cast to ints as input is integers converted to float64
         assert np.all(np.isclose(
-            poly_resample(psg_array.astype(np.int), new_sample_rate=1, old_sample_rate=2),
+            poly_resample(psg_array.astype(int), new_sample_rate=1, old_sample_rate=2),
             psg_resampled
         ))
 
@@ -36,7 +36,7 @@ class TestPSGSampling:
 
         # Assert output type, should be float64 but if other versions cast to float32 that is fine as well
         assert psg_resampled.dtype in (np.float64, np.float32)
-        assert fourier_resample(psg_array.astype(np.int), new_sample_rate=1, old_sample_rate=2).dtype in (np.float64, np.float32)
+        assert fourier_resample(psg_array.astype(int), new_sample_rate=1, old_sample_rate=2).dtype in (np.float64, np.float32)
 
         # Test on other datatypes, should not raise an error and should give similar results
         assert np.all(np.isclose(
@@ -45,7 +45,7 @@ class TestPSGSampling:
         ))
         # Should be similar values even when cast to ints as input is integers converted to float64
         assert np.all(np.isclose(
-            fourier_resample(psg_array.astype(np.int), new_sample_rate=1, old_sample_rate=2),
+            fourier_resample(psg_array.astype(int), new_sample_rate=1, old_sample_rate=2),
             psg_resampled
         ))
 
