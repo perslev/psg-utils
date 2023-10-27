@@ -119,7 +119,7 @@ def dense_to_sparse(array, period_length, time_unit: TimeUnit = TimeUnit.SECOND,
     start_inds = np.concatenate([[0], start_inds])
 
     # Get init times (in units of period_length)
-    inits = (start_inds * period_length).astype(np.int)
+    inits = (start_inds * period_length).astype(int)
     durs = np.concatenate([np.diff(inits), [end_time-inits[-1]]])
     stages = array[start_inds]
 
@@ -395,7 +395,7 @@ def load_events_file(events_file_path):
 
     Args:
         events_file_path: Path to .ids events file
-    
+
     Returns:
         A StartDurationStage format tuple
     """

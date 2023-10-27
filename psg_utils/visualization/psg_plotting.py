@@ -149,7 +149,7 @@ def plot_periods(X, y=None,
         set_equal_ylims(axes)
 
     # Set ticks at all period separation points
-    axes[-1].set_xticks(np.linspace(0, len(X), n_periods+1).astype(np.int))
+    axes[-1].set_xticks(np.linspace(0, len(X), n_periods+1).astype(int))
 
     if sample_rate is not None:
         # Set seconds on xaxis
