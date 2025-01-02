@@ -162,7 +162,14 @@ class LimitationQueue(BaseQueue):
 
         """
         for _ in range(num):
-            ss = self.non_loaded_queue.get_nowait()  # Should never block!
+            try:
+                ss = self.non_loaded_queue.get_nowait()
+            except Empty:
+                # Should only block if more studies were requested than available.
+                # Warn and add onl those available
+                logger.warning("Tried to add {} studies to load queue for dataset {}, but the non-loaded queue was "
+                               "depleted. Adding only those available...".format(num, self.dataset.identifier))
+                break
             if ss.loaded:
                 raise RuntimeWarning("Study ID {} in dataset {} seems to be "
                                      "already loaded, but it was fetched from "
